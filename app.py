@@ -1,5 +1,12 @@
 import streamlit as st
-from cost_engine import calculate_onprem_tco, calculate_manual_tco
+from engines.cost_engine import calculate_onprem_tco, calculate_manual_tco
+
+from dataset_builder.build_cloud_dataset import build_dataset
+
+# build or load dataset
+df = build_dataset()
+
+print(df.head())
 
 st.set_page_config(page_title="CMDSS", layout="wide")
 
