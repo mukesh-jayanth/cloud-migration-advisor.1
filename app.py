@@ -20,6 +20,7 @@ from engines.risk_engine import calculate_risk_adjustment, risk_adjusted_tco
 from engines.rule_engine import recommend_strategy, recommend_dr, get_migration_roadmap
 from engines.decision_engine import recommend_strategy as financial_recommend
 from ml.predict_strategy import predict_strategy
+from report_generator import generate_html_report, generate_csv_export
 
 
 # ── Page config ───────────────────────────────────────────────────────────────
@@ -146,7 +147,8 @@ st.markdown("""
 
 # ── Session state init ────────────────────────────────────────────────────────
 for key in ["tco_result", "cloud_analysis", "servers", "storage_tb",
-            "cpu_util", "ram_util", "pricing_model"]:
+            "cpu_util", "ram_util", "pricing_model",
+            "report_risk", "report_strategy", "report_ml"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
@@ -157,6 +159,12 @@ with st.sidebar:
     st.markdown("**Cloud Migration Decision Support System**")
     st.divider()
 
+    st.markdown("### 🏢 Organisation")
+    org_name_input = st.text_input("Organisation Name", value="My Organisation",
+                                    placeholder="Enter your org name")
+    st.session_state["org_name"] = org_name_input
+
+    st.divider()
     st.markdown("### ⚙️ Global Settings")
 
     pricing_model = st.selectbox(
@@ -185,6 +193,51 @@ with st.sidebar:
         st.success(f"✅ Cloud analysis done\n\nBest: **{bp}** @ **${cost:,.0f}/yr**")
 
     st.divider()
+    st.markdown("### 📥 Export Report")
+
+    # Build report data from session state
+    def _build_report_data_sidebar():
+        return {
+            "org_name":     st.session_state.get("org_name", "My Organisation"),
+            "pricing_model": st.session_state["pricing_model"] or "on_demand",
+            "tco":          st.session_state["tco_result"],
+            "cloud":        st.session_state["cloud_analysis"],
+            "risk":         st.session_state["report_risk"],
+            "strategy":     st.session_state["report_strategy"],
+            "ml":           st.session_state["report_ml"],
+        }
+
+    rd = _build_report_data_sidebar()
+    phases_done = sum([
+        rd["tco"] is not None,
+        rd["cloud"] is not None,
+        rd["risk"] is not None,
+        rd["strategy"] is not None,
+        rd["ml"] is not None,
+    ])
+    st.caption(f"{phases_done}/5 phases complete")
+
+    if phases_done > 0:
+        html_bytes = generate_html_report(rd).encode("utf-8")
+        st.download_button(
+            label="📄 Download HTML Report",
+            data=html_bytes,
+            file_name=f"cmdss_report_{rd['org_name'].replace(' ','_')}.html",
+            mime="text/html",
+            use_container_width=True
+        )
+        csv_bytes = generate_csv_export(rd).encode("utf-8")
+        st.download_button(
+            label="📊 Download CSV Data",
+            data=csv_bytes,
+            file_name=f"cmdss_data_{rd['org_name'].replace(' ','_')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    else:
+        st.info("Complete at least one phase to enable export.")
+
+    st.divider()
     st.caption("Phases: Cost · Risk · Rules · ML · Multi-Cloud")
 
 
@@ -204,12 +257,13 @@ st.markdown("""
 
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📦 Phase 1 — Infrastructure & TCO",
     "💰 Phase 2 — Cost Analysis",
     "⚠️ Phase 3 — Risk Analysis",
     "🧭 Phase 4 — Strategy & Rules",
-    "🤖 Phase 5 — ML Prediction"
+    "🤖 Phase 5 — ML Prediction",
+    "📥 Export Report"
 ])
 
 
@@ -632,6 +686,20 @@ with tab3:
                 adj_savings    = onprem_annual - adj_cloud_cost
                 adj_savings_p  = (adj_savings / onprem_annual * 100) if onprem_annual else 0
 
+                # ── Persist for report export ──
+                st.session_state["report_risk"] = {
+                    "risk":          risk,
+                    "adj_cloud_cost": adj_cloud_cost,
+                    "inputs": {
+                        "downtime_risk":       downtime_risk,
+                        "downtime_cost":       downtime_cost,
+                        "compliance_risk":     compliance_risk,
+                        "compliance_penalty":  compliance_penalty,
+                        "skill_risk":          skill_risk,
+                        "training_cost":       training_cost,
+                    }
+                }
+
                 st.markdown("#### Risk-Adjusted Results")
 
                 m1, m2 = st.columns(2)
@@ -767,6 +835,18 @@ with tab4:
             dr_plan  = recommend_dr(_downtime)
             roadmap  = get_migration_roadmap(strategy)
 
+            # ── Persist for report export ──
+            st.session_state["report_strategy"] = {
+                "strategy": strategy,
+                "dr_plan":  dr_plan,
+                "roadmap":  roadmap,
+                "inputs": {
+                    "compliance": _compliance,
+                    "downtime":   _downtime,
+                    "growth":     _growth,
+                }
+            }
+
             # Strategy badge
             badge_color = {
                 "Lift-and-Shift":       "badge-blue",
@@ -849,6 +929,12 @@ with tab5:
         try:
             ml_result = predict_strategy(features)
             strategy_ml = ml_result["strategy"]
+
+            # ── Persist for report export ──
+            st.session_state["report_ml"] = {
+                **ml_result,
+                "inputs": features
+            }
 
             # ── Prediction badge ──
             badge_map = {
@@ -955,6 +1041,131 @@ with tab5:
         except Exception as e:
             st.error(f"ML Prediction error: {e}")
             st.caption("Ensure models/decision_tree.pkl and models/label_encoder.pkl exist.")
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TAB 6 — Export Report
+# ══════════════════════════════════════════════════════════════════════════════
+with tab6:
+
+    st.markdown('<div class="section-header">📥 Export Full Analysis Report</div>',
+                unsafe_allow_html=True)
+
+    org_name = st.session_state.get("org_name", "My Organisation")
+
+    report_data = {
+        "org_name":      org_name,
+        "pricing_model": st.session_state["pricing_model"] or "on_demand",
+        "tco":           st.session_state["tco_result"],
+        "cloud":         st.session_state["cloud_analysis"],
+        "risk":          st.session_state["report_risk"],
+        "strategy":      st.session_state["report_strategy"],
+        "ml":            st.session_state["report_ml"],
+    }
+
+    phases_done = sum(
+        1 for k, v in report_data.items()
+        if k not in ("org_name", "pricing_model") and v is not None
+    )
+
+    st.markdown(f"**{phases_done}/5 phases complete** — fill in the remaining tabs to enrich the report.")
+
+    col_status, col_dl = st.columns([1, 1.2], gap="large")
+
+    with col_status:
+        st.markdown("#### 📋 Report Contents")
+        phase_checks = [
+            ("📦 Phase 1 — On-Premise TCO",   report_data["tco"]),
+            ("💰 Phase 2 — Cost Analysis",     report_data["cloud"]),
+            ("⚠️  Phase 3 — Risk Analysis",    report_data["risk"]),
+            ("🧭 Phase 4 — Rule Strategy",     report_data["strategy"]),
+            ("🤖 Phase 5 — ML Prediction",     report_data["ml"]),
+        ]
+        for label, data in phase_checks:
+            tick = "✅" if data else "⬜"
+            color = "#22c55e" if data else "#475569"
+            st.markdown(
+                f'<div style="padding:8px 12px;background:#1e293b;border-radius:6px;'                f'margin:4px 0;border-left:3px solid {color};">'                f'{tick} {label}</div>',
+                unsafe_allow_html=True
+            )
+
+        if phases_done < 5:
+            st.markdown("""
+            <div class="warn-box" style="margin-top:14px;">
+              ⚠️ Some phases are incomplete. You can still export —
+              incomplete sections will show "Not available" in the report.
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="info-box" style="margin-top:14px;">
+              ✅ All phases complete. Your report covers the full analysis.
+            </div>
+            """, unsafe_allow_html=True)
+
+    with col_dl:
+        st.markdown("#### 📥 Download Options")
+
+        if phases_done > 0:
+
+            # ── HTML Report ──
+            html_report = generate_html_report(report_data)
+            st.download_button(
+                label="📄 Download HTML Report",
+                data=html_report.encode("utf-8"),
+                file_name=f"cmdss_report_{org_name.replace(' ', '_')}.html",
+                mime="text/html",
+                use_container_width=True,
+                type="primary"
+            )
+            st.markdown("""
+            <div style="color:#64748b;font-size:.8rem;margin:-8px 0 16px 4px;">
+              Self-contained · Opens in any browser · Print to PDF via Ctrl+P
+            </div>
+            """, unsafe_allow_html=True)
+
+            # ── CSV Export ──
+            csv_data = generate_csv_export(report_data)
+            st.download_button(
+                label="📊 Download CSV Data Export",
+                data=csv_data.encode("utf-8"),
+                file_name=f"cmdss_data_{org_name.replace(' ', '_')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            st.markdown("""
+            <div style="color:#64748b;font-size:.8rem;margin:-8px 0 16px 4px;">
+              All metrics from all phases · Flat CSV format · Excel compatible
+            </div>
+            """, unsafe_allow_html=True)
+
+            # ── Report preview ──
+            st.markdown("---")
+            st.markdown("#### 🔍 Report Preview")
+            st.caption("Sections included in the HTML report:")
+            preview_items = [
+                ("Cover page",          "Organisation name, date, pricing model, phase index"),
+                ("Executive Summary",   "Key metrics table across all phases at a glance"),
+                ("Phase 1 — TCO",       "Cost breakdown table + CapEx/OpEx + 5yr projection"),
+                ("Phase 2 — Cost",      "Right-sizing table + provider comparison + savings"),
+                ("Phase 3 — Risk",      "Risk factor table + adjusted costs + verdict banner"),
+                ("Phase 4 — Strategy",  "Migration strategy + DR plan + phased roadmap"),
+                ("Phase 5 — ML",        "Prediction + confidence + XAI factors + decision path"),
+            ]
+            for title, desc in preview_items:
+                st.markdown(
+                    f'<div style="display:flex;gap:10px;padding:7px 12px;'                    f'background:#1e293b;border-radius:6px;margin:3px 0;">'                    f'<span style="color:#60a5fa;font-weight:600;min-width:160px;">{title}</span>'                    f'<span style="color:#94a3b8;font-size:.85rem;">{desc}</span></div>',
+                    unsafe_allow_html=True
+                )
+
+        else:
+            st.markdown("""
+            <div class="info-box" style="text-align:center;padding:32px;">
+              <h3 style="color:#60a5fa;margin-bottom:8px;">No data yet</h3>
+              <p>Complete at least <b>Phase 1</b> in the first tab to enable exports.</p>
+            </div>
+            """, unsafe_allow_html=True)
 
 
 # ── Footer ────────────────────────────────────────────────────────────────────
