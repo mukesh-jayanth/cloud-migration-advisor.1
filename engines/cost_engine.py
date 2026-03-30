@@ -1,11 +1,11 @@
 import pandas as pd
+import math
 
 # ---------------------------------------
 # Enterprise Presets
 # ---------------------------------------
 
 ENTERPRISE_PRESETS = {
-
     "small": {
         "servers": 8,
         "avg_util": 0.30,
@@ -14,7 +14,6 @@ ENTERPRISE_PRESETS = {
         "downtime": "high",
         "growth_rate": 0.10
     },
-
     "medium": {
         "servers": 21,
         "avg_util": 0.38,
@@ -23,7 +22,6 @@ ENTERPRISE_PRESETS = {
         "downtime": "medium",
         "growth_rate": 0.15
     },
-
     "large": {
         "servers": 120,
         "avg_util": 0.45,
@@ -34,134 +32,226 @@ ENTERPRISE_PRESETS = {
     }
 }
 
+
 # ---------------------------------------
-# Financial Assumptions
+# Financial Assumptions (Configurable)
+# ---------------------------------------
+# These defaults can be overridden by passing a custom
+# FinancialConfig object into any calculation function.
+
+class FinancialConfig:
+    """
+    Holds all financial assumptions for the cost engine.
+    Override defaults to model different cost scenarios.
+    """
+
+    def __init__(
+        self,
+        server_unit_cost: float = 5000,
+        maintenance_rate: float = 0.15,
+        power_cost_per_server: float = 500,
+        admin_salary: float = 80000,
+        servers_per_admin: int = 25,
+        storage_cost_per_tb: float = 150,        # NEW: $/TB/year for storage maintenance
+        storage_hardware_cost_per_tb: float = 500 # NEW: one-time CapEx per TB
+    ):
+        self.server_unit_cost = server_unit_cost
+        self.maintenance_rate = maintenance_rate
+        self.power_cost_per_server = power_cost_per_server
+        self.admin_salary = admin_salary
+        self.servers_per_admin = servers_per_admin
+        self.storage_cost_per_tb = storage_cost_per_tb
+        self.storage_hardware_cost_per_tb = storage_hardware_cost_per_tb
+
+
+# Shared default config instance
+DEFAULT_CONFIG = FinancialConfig()
+
+
+# ---------------------------------------
+# Input Validation
 # ---------------------------------------
 
-SERVER_COST = 5000
-MAINTENANCE_RATE = 0.15
-POWER_COST_PER_SERVER = 500
-ADMIN_SALARY = 80000
-SERVERS_PER_ADMIN = 25
+def validate_inputs(servers: float, storage_tb: float):
+    """Raises ValueError if core inputs are invalid."""
+    if servers <= 0:
+        raise ValueError(f"Server count must be positive, got {servers}.")
+    if storage_tb < 0:
+        raise ValueError(f"Storage cannot be negative, got {storage_tb} TB.")
 
 
 # ---------------------------------------
 # Load Infrastructure Dataset
 # ---------------------------------------
 
-def load_infrastructure(file_path):
-
+def load_infrastructure(file_path: str):
+    """
+    Reads an Excel infrastructure file and derives
+    total server count and total storage.
+    """
     df = pd.read_excel(file_path)
 
-    total_servers = df["Quantity"].sum()
+    required_cols = {"Quantity", "Storage (TB) per Server"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"Dataset is missing required columns: {missing}")
 
-    total_storage = (
-        df["Quantity"] *
-        df["Storage (TB) per Server"]
-    ).sum()
+    total_servers = df["Quantity"].sum()
+    total_storage = (df["Quantity"] * df["Storage (TB) per Server"]).sum()
 
     return df, total_servers, total_storage
 
 
 # ---------------------------------------
-# Cost Calculations
+# Individual Cost Calculations
 # ---------------------------------------
 
-def calculate_hardware_cost(servers):
-
-    return servers * SERVER_COST
-
-
-def calculate_maintenance_cost(hardware_cost):
-
-    return hardware_cost * MAINTENANCE_RATE
+def calculate_hardware_cost(servers: float, config: FinancialConfig = DEFAULT_CONFIG) -> float:
+    """One-time CapEx for server hardware."""
+    return servers * config.server_unit_cost
 
 
-def calculate_power_cost(servers):
+def calculate_storage_hardware_cost(storage_tb: float, config: FinancialConfig = DEFAULT_CONFIG) -> float:
+    """One-time CapEx for storage hardware (SAN/NAS)."""
+    return storage_tb * config.storage_hardware_cost_per_tb
 
-    return servers * POWER_COST_PER_SERVER
+
+def calculate_maintenance_cost(hardware_cost: float, config: FinancialConfig = DEFAULT_CONFIG) -> float:
+    """Annual server maintenance (% of hardware CapEx)."""
+    return hardware_cost * config.maintenance_rate
 
 
-def calculate_staff_cost(servers):
+def calculate_power_cost(servers: float, config: FinancialConfig = DEFAULT_CONFIG) -> float:
+    """Annual power & cooling cost."""
+    return servers * config.power_cost_per_server
 
-    admins_required = max(1, round(servers / SERVERS_PER_ADMIN))
 
-    return admins_required * ADMIN_SALARY
+def calculate_staff_cost(servers: float, config: FinancialConfig = DEFAULT_CONFIG) -> float:
+    """Annual IT staff cost based on admin-to-server ratio."""
+    admins_required = max(1, math.ceil(servers / config.servers_per_admin))
+    return admins_required * config.admin_salary
+
+
+def calculate_storage_opex(storage_tb: float, config: FinancialConfig = DEFAULT_CONFIG) -> float:
+    """Annual storage operational cost (licensing, maintenance)."""
+    return storage_tb * config.storage_cost_per_tb
 
 
 # ---------------------------------------
-# Manual Parameter Input
+# Core Cost Aggregator
 # ---------------------------------------
 
-def calculate_manual_tco(servers, storage_tb):
+def calculate_annual_cost(
+    servers: float,
+    storage_tb: float,
+    config: FinancialConfig = DEFAULT_CONFIG
+) -> tuple[float, float, float]:
+    """
+    Computes total CapEx and annual OpEx.
 
-    hardware_cost = calculate_hardware_cost(servers)
+    Returns:
+        total_capex   — one-time hardware + storage capital expenditure
+        annual_opex   — recurring yearly operational cost
+        hardware_cost — server CapEx component (exposed for reporting)
+    """
+    # CapEx (one-time)
+    hardware_cost = calculate_hardware_cost(servers, config)
+    storage_capex = calculate_storage_hardware_cost(storage_tb, config)
+    total_capex = hardware_cost + storage_capex
 
-    maintenance = calculate_maintenance_cost(hardware_cost)
+    # OpEx (annual recurring)
+    maintenance = calculate_maintenance_cost(hardware_cost, config)
+    power = calculate_power_cost(servers, config)
+    staff = calculate_staff_cost(servers, config)
+    storage_opex = calculate_storage_opex(storage_tb, config)
 
-    power = calculate_power_cost(servers)
+    annual_opex = maintenance + power + staff + storage_opex
 
-    staff = calculate_staff_cost(servers)
+    return total_capex, annual_opex, hardware_cost
 
-    annual_cost = maintenance + power + staff
 
-    tco_3yr = hardware_cost + (annual_cost * 3)
+# ---------------------------------------
+# Shared TCO Result Builder
+# ---------------------------------------
 
-    tco_5yr = hardware_cost + (annual_cost * 5)
+def build_tco_result(
+    servers: float,
+    storage_tb: float,
+    config: FinancialConfig = DEFAULT_CONFIG
+) -> dict:
+    """
+    Central function that assembles the full TCO result dict.
+    Used by all input modes (file, preset, manual) to avoid duplication.
+    """
+    validate_inputs(servers, storage_tb)
+
+    total_capex, annual_opex, hardware_cost = calculate_annual_cost(servers, storage_tb, config)
 
     return {
-
+        # Infrastructure
         "servers": int(servers),
         "storage_tb": float(storage_tb),
-        "hardware_cost": float(hardware_cost),
-        "annual_operational_cost": float(annual_cost),
-        "tco_3yr": float(tco_3yr),
-        "tco_5yr": float(tco_5yr)
 
+        # CapEx breakdown
+        "hardware_cost": float(hardware_cost),
+        "storage_capex": float(calculate_storage_hardware_cost(storage_tb, config)),
+        "total_capex": float(total_capex),
+
+        # OpEx breakdown (annual)
+        "annual_maintenance": float(calculate_maintenance_cost(hardware_cost, config)),
+        "annual_power": float(calculate_power_cost(servers, config)),
+        "annual_staff": float(calculate_staff_cost(servers, config)),
+        "annual_storage_opex": float(calculate_storage_opex(storage_tb, config)),
+        "annual_operational_cost": float(annual_opex),
+
+        # TCO projections
+        "tco_3yr": float(total_capex + annual_opex * 3),
+        "tco_5yr": float(total_capex + annual_opex * 5),
     }
 
 
 # ---------------------------------------
-# Main Cost Engine
+# Public API — Three Input Modes
 # ---------------------------------------
 
-def calculate_onprem_tco(file_path=None, preset=None):
+def calculate_onprem_tco(
+    file_path: str = None,
+    preset: str = None,
+    config: FinancialConfig = DEFAULT_CONFIG
+) -> dict:
+    """
+    Computes on-premise TCO from an Excel file or a named preset.
 
+    Args:
+        file_path : path to Excel infrastructure dataset
+        preset    : one of "small", "medium", "large"
+        config    : optional FinancialConfig to override assumptions
+    """
     if file_path:
-
-        df, servers, storage = load_infrastructure(file_path)
-
+        _, servers, storage = load_infrastructure(file_path)
     elif preset:
-
+        if preset not in ENTERPRISE_PRESETS:
+            raise ValueError(f"Unknown preset '{preset}'. Choose from: {list(ENTERPRISE_PRESETS)}")
         preset_data = ENTERPRISE_PRESETS[preset]
-
         servers = preset_data["servers"]
         storage = preset_data["storage_tb"]
-
     else:
-        raise ValueError("Provide either dataset or preset.")
+        raise ValueError("Provide either a file_path or a preset name.")
+
+    return build_tco_result(servers, storage, config)
 
 
-    # Hardware
-    hardware_cost = calculate_hardware_cost(servers)
+def calculate_manual_tco(
+    servers: float,
+    storage_tb: float,
+    config: FinancialConfig = DEFAULT_CONFIG
+) -> dict:
+    """
+    Computes on-premise TCO from manually supplied values.
 
-    # Operational costs
-    maintenance = calculate_maintenance_cost(hardware_cost)
-    power = calculate_power_cost(servers)
-    staff = calculate_staff_cost(servers)
-
-    annual_cost = maintenance + power + staff
-
-    tco_3yr = hardware_cost + (annual_cost * 3)
-    tco_5yr = hardware_cost + (annual_cost * 5)
-
-    return {
-
-    "servers": int(servers),
-    "storage_tb": float(storage),
-    "hardware_cost": float(hardware_cost),
-    "annual_operational_cost": float(annual_cost),
-    "tco_3yr": float(tco_3yr),
-    "tco_5yr": float(tco_5yr)
-
-}
+    Args:
+        servers    : total number of on-premise servers
+        storage_tb : total storage in terabytes
+        config     : optional FinancialConfig to override assumptions
+    """
+    return build_tco_result(servers, storage_tb, config)
