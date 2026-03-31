@@ -38,10 +38,33 @@ def generate_html_report(report_data: dict) -> str:
     strategy = report_data.get("strategy")
     ml       = report_data.get("ml")
 
+    USD_TO_INR = 84.0
+
     # ── helpers ──
-    def fmt(val, prefix="$"):
+    def fmt(val, prefix="₹"):
+        """Format a USD value as INR with Indian number grouping."""
         try:
-            return f"{prefix}{float(val):,.0f}"
+            inr_val = float(val) * USD_TO_INR
+            # Indian grouping: last 3 digits, then groups of 2
+            s = f"{inr_val:,.0f}".replace(",", "")
+            neg = s.startswith("-")
+            if neg:
+                s = s[1:]
+            if len(s) > 3:
+                last3 = s[-3:]
+                rest = s[:-3]
+                groups = []
+                while len(rest) > 2:
+                    groups.append(rest[-2:])
+                    rest = rest[:-2]
+                if rest:
+                    groups.append(rest)
+                groups.reverse()
+                formatted = ",".join(groups) + "," + last3
+            else:
+                formatted = s
+            sign = "-" if neg else ""
+            return f"{prefix}{sign}{formatted}"
         except Exception:
             return str(val)
 
@@ -598,16 +621,16 @@ def generate_csv_export(report_data: dict) -> str:
         for k, v in [
             ("Servers",              tco["servers"]),
             ("Storage (TB)",         tco["storage_tb"]),
-            ("Hardware CapEx ($)",   tco["hardware_cost"]),
-            ("Storage CapEx ($)",    tco["storage_capex"]),
-            ("Total CapEx ($)",      tco["total_capex"]),
-            ("Annual Maintenance ($)", tco["annual_maintenance"]),
-            ("Annual Power ($)",     tco["annual_power"]),
-            ("Annual IT Staff ($)",  tco["annual_staff"]),
-            ("Annual Storage OpEx ($)", tco["annual_storage_opex"]),
-            ("Annual OpEx ($)",      tco["annual_operational_cost"]),
-            ("3-Year TCO ($)",       tco["tco_3yr"]),
-            ("5-Year TCO ($)",       tco["tco_5yr"]),
+            ("Hardware CapEx (₹)",   tco["hardware_cost"]),
+            ("Storage CapEx (₹)",    tco["storage_capex"]),
+            ("Total CapEx (₹)",      tco["total_capex"]),
+            ("Annual Maintenance (₹)", tco["annual_maintenance"]),
+            ("Annual Power (₹)",     tco["annual_power"]),
+            ("Annual IT Staff (₹)",  tco["annual_staff"]),
+            ("Annual Storage OpEx (₹)", tco["annual_storage_opex"]),
+            ("Annual OpEx (₹)",      tco["annual_operational_cost"]),
+            ("3-Year TCO (₹)",       tco["tco_3yr"]),
+            ("5-Year TCO (₹)",       tco["tco_5yr"]),
         ]:
             writer.writerow([k, round(v, 2)])
     else:
@@ -631,17 +654,17 @@ def generate_csv_export(report_data: dict) -> str:
             ("Recommended RAM (GB)",   cloud["recommended_ram"]),
             ("CPU Reduction (%)",      cloud["cpu_reduction_pct"]),
             ("RAM Reduction (%)",      cloud["ram_reduction_pct"]),
-            ("On-Prem Annual ($)",     round(onp_yr, 2)),
-            ("Best Cloud Annual ($)",  round(cloud_yr, 2)),
-            ("Annual Saving ($)",      round(onp_yr - cloud_yr, 2)),
-            ("On-Prem 5yr ($)",        round(onp_5yr, 2)),
-            ("Cloud 5yr ($)",          round(cloud_5yr, 2)),
-            ("5yr Saving ($)",         round(onp_5yr - cloud_5yr, 2)),
+            ("On-Prem Annual (₹)",     round(onp_yr, 2)),
+            ("Best Cloud Annual (₹)",  round(cloud_yr, 2)),
+            ("Annual Saving (₹)",      round(onp_yr - cloud_yr, 2)),
+            ("On-Prem 5yr (₹)",        round(onp_5yr, 2)),
+            ("Cloud 5yr (₹)",          round(cloud_5yr, 2)),
+            ("5yr Saving (₹)",         round(onp_5yr - cloud_5yr, 2)),
         ]:
             writer.writerow([k, v])
         writer.writerow([])
         writer.writerow(["Provider", "Instance", "vCPU", "RAM (GB)",
-                         "On-Demand ($)", "Reserved 1yr ($)", "Reserved 3yr ($)", "Selected ($)"])
+                         "On-Demand (₹)", "Reserved 1yr (₹)", "Reserved 3yr (₹)", "Selected (₹)"])
         for prov, cdata in cloud["costs"].items():
             inst = cloud["instances"].get(prov, {})
             writer.writerow([
@@ -666,16 +689,16 @@ def generate_csv_export(report_data: dict) -> str:
         ri = risk["inputs"]
         for k, v in [
             ("Downtime Risk Probability",   ri["downtime_risk"]),
-            ("Downtime Max Cost ($)",        ri["downtime_cost"]),
-            ("Downtime Expected Cost ($)",   round(rd["downtime_cost"], 2)),
+            ("Downtime Max Cost (₹)",        ri["downtime_cost"]),
+            ("Downtime Expected Cost (₹)",   round(rd["downtime_cost"], 2)),
             ("Compliance Risk Probability",  ri["compliance_risk"]),
-            ("Compliance Penalty ($)",       ri["compliance_penalty"]),
-            ("Compliance Expected Cost ($)", round(rd["compliance_cost"], 2)),
+            ("Compliance Penalty (₹)",       ri["compliance_penalty"]),
+            ("Compliance Expected Cost (₹)", round(rd["compliance_cost"], 2)),
             ("Skill Gap Risk Probability",   ri["skill_risk"]),
-            ("Training Cost ($)",            ri["training_cost"]),
-            ("Skill Gap Expected Cost ($)",  round(rd["skill_cost"], 2)),
-            ("Total Risk Cost ($)",          round(rd["total_risk_cost"], 2)),
-            ("Risk-Adjusted Cloud Cost ($)", round(risk["adj_cloud_cost"], 2)),
+            ("Training Cost (₹)",            ri["training_cost"]),
+            ("Skill Gap Expected Cost (₹)",  round(rd["skill_cost"], 2)),
+            ("Total Risk Cost (₹)",          round(rd["total_risk_cost"], 2)),
+            ("Risk-Adjusted Cloud Cost (₹)", round(risk["adj_cloud_cost"], 2)),
         ]:
             writer.writerow([k, v])
     else:
