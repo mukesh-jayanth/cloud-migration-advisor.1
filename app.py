@@ -27,12 +27,8 @@ from report_generator import generate_html_report, generate_csv_export
 USD_TO_INR = 84.0   # Update this rate as needed
 
 def inr(usd_value: float, decimals: int = 0) -> str:
-    """Convert a USD value to INR and format it with the ₹ symbol.
-    Uses Indian numbering (lakhs / crores) for readability."""
     val = usd_value * USD_TO_INR
-    # Indian number formatting: group as ...XX,XX,XXX
     s = f"{val:,.{decimals}f}"
-    # Re-format to Indian style: last group = 3 digits, rest = 2 digits
     parts = s.split(".")
     integer_str = parts[0].replace(",", "")
     neg = integer_str.startswith("-")
@@ -68,13 +64,11 @@ st.set_page_config(
 # ── Global CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    /* Sidebar */
     [data-testid="stSidebar"] { background-color: #0f172a; }
     [data-testid="stSidebar"] * { color: #e2e8f0 !important; }
     [data-testid="stSidebar"] .stSelectbox label,
     [data-testid="stSidebar"] .stSlider label { color: #94a3b8 !important; }
 
-    /* Tab styling */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] {
         background-color: #1e293b;
@@ -88,7 +82,6 @@ st.markdown("""
         color: white !important;
     }
 
-    /* Metric cards */
     [data-testid="stMetric"] {
         background: #1e293b;
         border-radius: 10px;
@@ -97,7 +90,6 @@ st.markdown("""
     }
     [data-testid="stMetricValue"] { font-size: 1.6rem !important; font-weight: 700; }
 
-    /* Section headers */
     .section-header {
         background: linear-gradient(135deg, #1e3a5f 0%, #1e293b 100%);
         border-left: 4px solid #2563eb;
@@ -109,13 +101,11 @@ st.markdown("""
         color: #e2e8f0;
     }
 
-    /* Strategy badges */
     .badge-blue   { background:#1d4ed8; color:white; padding:4px 14px; border-radius:20px; font-weight:600; font-size:.85rem; }
     .badge-green  { background:#15803d; color:white; padding:4px 14px; border-radius:20px; font-weight:600; font-size:.85rem; }
     .badge-orange { background:#c2410c; color:white; padding:4px 14px; border-radius:20px; font-weight:600; font-size:.85rem; }
     .badge-purple { background:#7e22ce; color:white; padding:4px 14px; border-radius:20px; font-weight:600; font-size:.85rem; }
 
-    /* Roadmap steps */
     .roadmap-step {
         background: #1e293b;
         border-left: 3px solid #2563eb;
@@ -126,7 +116,6 @@ st.markdown("""
         font-size: .93rem;
     }
 
-    /* Decision path rules */
     .rule-step {
         background: #0f172a;
         border: 1px solid #334155;
@@ -138,7 +127,6 @@ st.markdown("""
         color: #7dd3fc;
     }
 
-    /* Info box */
     .info-box {
         background: #0c2340;
         border: 1px solid #1d4ed8;
@@ -149,7 +137,6 @@ st.markdown("""
         font-size: .9rem;
     }
 
-    /* Warning box */
     .warn-box {
         background: #2d1b00;
         border: 1px solid #d97706;
@@ -160,7 +147,6 @@ st.markdown("""
         font-size: .9rem;
     }
 
-    /* Provider comparison table */
     .provider-row {
         display: flex;
         justify-content: space-between;
@@ -229,16 +215,15 @@ with st.sidebar:
     st.divider()
     st.markdown("### 📥 Export Report")
 
-    # Build report data from session state
     def _build_report_data_sidebar():
         return {
-            "org_name":     st.session_state.get("org_name", "My Organisation"),
+            "org_name":      st.session_state.get("org_name", "My Organisation"),
             "pricing_model": st.session_state["pricing_model"] or "on_demand",
-            "tco":          st.session_state["tco_result"],
-            "cloud":        st.session_state["cloud_analysis"],
-            "risk":         st.session_state["report_risk"],
-            "strategy":     st.session_state["report_strategy"],
-            "ml":           st.session_state["report_ml"],
+            "tco":           st.session_state["tco_result"],
+            "cloud":         st.session_state["cloud_analysis"],
+            "risk":          st.session_state["report_risk"],
+            "strategy":      st.session_state["report_strategy"],
+            "ml":            st.session_state["report_ml"],
         }
 
     rd = _build_report_data_sidebar()
@@ -323,10 +308,91 @@ with tab1:
 
         # ── Input mode ──
         if input_method == "Upload Infrastructure Dataset":
+
+            # ── Format guidance panel ──
+            st.markdown("""
+            <div style="background:#0c1929;border:1px solid #1d4ed8;border-radius:10px;
+                        padding:16px 20px;margin-bottom:14px;">
+              <div style="color:#60a5fa;font-weight:700;font-size:.9rem;
+                          margin-bottom:10px;letter-spacing:.04em;">
+                📋 REQUIRED FILE FORMAT
+              </div>
+              <div style="color:#cbd5e1;font-size:.85rem;margin-bottom:10px;">
+                Your <code style="background:#1e293b;padding:1px 6px;border-radius:3px;">.xlsx</code>
+                file must contain these <strong style="color:#f8fafc;">two columns</strong>
+                with exact names (case-sensitive):
+              </div>
+              <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+                <thead>
+                  <tr>
+                    <th style="background:#1e3a5f;color:#93c5fd;padding:7px 12px;
+                               text-align:left;border-radius:4px 0 0 0;">Column Name</th>
+                    <th style="background:#1e3a5f;color:#93c5fd;padding:7px 12px;
+                               text-align:left;">Type</th>
+                    <th style="background:#1e3a5f;color:#93c5fd;padding:7px 12px;
+                               text-align:left;border-radius:0 4px 0 0;">Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid #1e293b;">
+                    <td style="padding:8px 12px;">
+                      <code style="color:#34d399;background:#052e16;
+                                   padding:2px 8px;border-radius:3px;font-size:.8rem;">Quantity</code>
+                    </td>
+                    <td style="padding:8px 12px;color:#94a3b8;font-size:.82rem;">Integer</td>
+                    <td style="padding:8px 12px;color:#cbd5e1;font-size:.82rem;">
+                      Number of servers of this type</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:8px 12px;">
+                      <code style="color:#34d399;background:#052e16;
+                                   padding:2px 8px;border-radius:3px;font-size:.8rem;">Storage (TB) per Server</code>
+                    </td>
+                    <td style="padding:8px 12px;color:#94a3b8;font-size:.82rem;">Decimal</td>
+                    <td style="padding:8px 12px;color:#cbd5e1;font-size:.82rem;">
+                      Storage per individual server in TB</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style="margin-top:12px;padding:10px 12px;background:#0f172a;
+                          border-radius:6px;font-size:.8rem;line-height:1.8;color:#94a3b8;">
+                <div style="margin-bottom:4px;">
+                  <span style="color:#e2e8f0;font-weight:600;">How values are used:</span><br>
+                  Total Servers &nbsp;= &nbsp;SUM of all Quantity values<br>
+                  Total Storage &nbsp;= &nbsp;SUM of (Quantity × Storage per Server)
+                </div>
+                <div style="margin-top:8px;padding-top:8px;border-top:1px solid #1e293b;">
+                  <span style="color:#e2e8f0;font-weight:600;">Example row:</span>
+                  &nbsp; Web Servers | <strong style="color:#f8fafc;">10</strong> |
+                  <strong style="color:#f8fafc;">2.0</strong>
+                  &nbsp;→&nbsp; 10 servers, 2 TB each = 20 TB total<br>
+                  <span style="color:#e2e8f0;font-weight:600;">Extra columns</span>
+                  &nbsp;(e.g. Server Type, Notes) are <em>allowed and ignored</em>.
+                </div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # ── Sample file download ──
+            try:
+                with open("data/sample_infrastructure.xlsx", "rb") as _f:
+                    _sample_bytes = _f.read()
+                st.download_button(
+                    label="⬇️ Download Sample Excel Template",
+                    data=_sample_bytes,
+                    file_name="sample_infrastructure.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    width="stretch",
+                    help="A ready-to-edit sample with the correct column format and example data"
+                )
+            except FileNotFoundError:
+                pass
+
+            # ── File uploader ──
             uploaded_file = st.file_uploader(
-                "Upload Infrastructure Excel (.xlsx)",
+                "Upload your Infrastructure Excel file",
                 type=["xlsx"],
-                help="Requires columns: 'Quantity' and 'Storage (TB) per Server'"
+                help="Must contain 'Quantity' and 'Storage (TB) per Server' columns"
             )
             if uploaded_file:
                 try:
@@ -334,9 +400,22 @@ with tab1:
                     st.session_state["tco_result"] = result
                     st.session_state["servers"]    = result["servers"]
                     st.session_state["storage_tb"] = result["storage_tb"]
-                    st.success(f"✅ Loaded: **{result['servers']} servers**, **{result['storage_tb']} TB**")
+                    st.success(
+                        f"✅ Loaded: **{result['servers']} servers** · "
+                        f"**{result['storage_tb']} TB** total storage"
+                    )
+                except ValueError as e:
+                    st.error(f"❌ Format error: {e}")
+                    st.markdown("""
+                    <div class="warn-box">
+                      Ensure your file has exactly these column names (case-sensitive):<br><br>
+                      <code style="background:#1a1000;padding:2px 7px;border-radius:3px;">Quantity</code>
+                      &nbsp; and &nbsp;
+                      <code style="background:#1a1000;padding:2px 7px;border-radius:3px;">Storage (TB) per Server</code>
+                    </div>
+                    """, unsafe_allow_html=True)
                 except Exception as e:
-                    st.error(f"Error reading file: {e}")
+                    st.error(f"❌ Could not read file: {e}")
 
         elif input_method == "Enterprise Preset":
             preset = st.selectbox(
@@ -356,8 +435,8 @@ with tab1:
                 st.success(f"✅ Preset loaded: **{result['servers']} servers**, **{result['storage_tb']} TB**")
 
         elif input_method == "Manual Inputs":
-            servers_input    = st.number_input("Number of Servers",  min_value=1, value=20)
-            storage_input    = st.number_input("Storage (TB)",        min_value=1.0, value=10.0, step=1.0)
+            servers_input = st.number_input("Number of Servers",  min_value=1, value=20)
+            storage_input = st.number_input("Storage (TB)",        min_value=1.0, value=10.0, step=1.0)
             if st.button("▶ Calculate TCO", width="stretch"):
                 result = calculate_manual_tco(servers=servers_input, storage_tb=storage_input)
                 st.session_state["tco_result"] = result
@@ -365,18 +444,19 @@ with tab1:
                 st.session_state["storage_tb"] = result["storage_tb"]
                 st.success(f"✅ Calculated: **{result['servers']} servers**, **{result['storage_tb']} TB**")
 
-        # ── Utilisation inputs (always visible) ──
+        # ── Utilisation inputs ──
         st.markdown("---")
         st.markdown("#### Server Utilisation")
-        vcpu_input    = st.number_input("vCPU per Server",       min_value=1,   value=8)
-        ram_input     = st.number_input("RAM per Server (GB)",   min_value=1,   value=32)
-        cpu_util      = st.slider("CPU Utilisation (%)",         10, 100, 60,   step=5)
-        ram_util      = st.slider("RAM Utilisation (%)",         10, 100, 70,   step=5)
+        vcpu_input = st.number_input("vCPU per Server",      min_value=1, value=8)
+        ram_input  = st.number_input("RAM per Server (GB)",  min_value=1, value=32)
+        cpu_util   = st.slider("CPU Utilisation (%)",        10, 100, 60, step=5)
+        ram_util   = st.slider("RAM Utilisation (%)",        10, 100, 70, step=5)
 
         st.session_state["cpu_util"] = cpu_util
         st.session_state["ram_util"] = ram_util
 
-        if st.session_state["servers"] and st.button("☁️ Run Cloud Analysis", width="stretch", type="primary"):
+        if st.session_state["servers"] and st.button("☁️ Run Cloud Analysis",
+                                                       width="stretch", type="primary"):
             try:
                 analysis = run_cloud_analysis(
                     current_vcpu=vcpu_input,
@@ -399,22 +479,20 @@ with tab1:
         if result:
             st.markdown("#### On-Premise TCO Results")
 
-            # ── TCO headline metrics ──
             m1, m2, m3 = st.columns(3)
-            m1.metric("Annual OpEx",  inr(result['annual_operational_cost']))
-            m2.metric("3-Year TCO",   inr(result['tco_3yr']))
-            m3.metric("5-Year TCO",   inr(result['tco_5yr']))
+            m1.metric("Annual OpEx", inr(result['annual_operational_cost']))
+            m2.metric("3-Year TCO",  inr(result['tco_3yr']))
+            m3.metric("5-Year TCO",  inr(result['tco_5yr']))
 
             st.markdown("---")
 
-            # ── Cost breakdown chart ──
             cost_items = {
-                "Hardware CapEx":    result["hardware_cost"],
-                "Storage CapEx":     result["storage_capex"],
-                "Maintenance":       result["annual_maintenance"],
-                "Power & Cooling":   result["annual_power"],
-                "IT Staff":          result["annual_staff"],
-                "Storage OpEx":      result["annual_storage_opex"],
+                "Hardware CapEx":  result["hardware_cost"],
+                "Storage CapEx":   result["storage_capex"],
+                "Maintenance":     result["annual_maintenance"],
+                "Power & Cooling": result["annual_power"],
+                "IT Staff":        result["annual_staff"],
+                "Storage OpEx":    result["annual_storage_opex"],
             }
             df_costs = pd.DataFrame({
                 "Category": list(cost_items.keys()),
@@ -423,54 +501,44 @@ with tab1:
 
             fig_donut = px.pie(
                 df_costs, values="Amount", names="Category",
-                title="Cost Breakdown",
-                hole=0.45,
+                title="Cost Breakdown", hole=0.45,
                 color_discrete_sequence=px.colors.sequential.Blues_r
             )
             fig_donut.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font_color="#e2e8f0",
-                title_font_size=14,
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font_color="#e2e8f0", title_font_size=14,
                 legend=dict(font=dict(size=11)),
                 margin=dict(t=50, b=10, l=10, r=10)
             )
             st.plotly_chart(fig_donut, width="stretch")
 
-            # ── TCO projection line chart ──
-            years = [1, 2, 3, 4, 5]
-            capex = result["total_capex"]
-            opex  = result["annual_operational_cost"]
+            years    = [1, 2, 3, 4, 5]
+            capex    = result["total_capex"]
+            opex     = result["annual_operational_cost"]
             tco_vals = [capex + opex * y for y in years]
 
             fig_line = px.line(
-                x=years, y=tco_vals,
-                title="TCO Projection (5 Years)",
-                markers=True,
-                labels={"x": "Year", "y": "Cumulative Cost (₹)"}
+                x=years, y=tco_vals, title="TCO Projection (5 Years)",
+                markers=True, labels={"x": "Year", "y": "Cumulative Cost (₹)"}
             )
             fig_line.update_traces(line_color="#2563eb", line_width=3, marker_size=8)
             fig_line.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(15,23,42,0.8)",
-                font_color="#e2e8f0",
-                title_font_size=14,
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,0.8)",
+                font_color="#e2e8f0", title_font_size=14,
                 margin=dict(t=50, b=30, l=10, r=10),
-                xaxis=dict(gridcolor="#334155"),
-                yaxis=dict(gridcolor="#334155")
+                xaxis=dict(gridcolor="#334155"), yaxis=dict(gridcolor="#334155")
             )
             st.plotly_chart(fig_line, width="stretch")
 
-            # ── Right-sizing preview if cloud analysis done ──
             analysis = st.session_state["cloud_analysis"]
             if analysis:
                 st.markdown("#### Right-Sizing Result")
                 r1, r2, r3, r4 = st.columns(4)
-                r1.metric("vCPU (Before)",  analysis["original_vcpu"])
-                r2.metric("vCPU (After)",   analysis["recommended_vcpu"],
+                r1.metric("vCPU (Before)", analysis["original_vcpu"])
+                r2.metric("vCPU (After)",  analysis["recommended_vcpu"],
                           delta=f"-{analysis['cpu_reduction_pct']}%")
-                r3.metric("RAM (Before)",   f"{analysis['original_ram']} GB")
-                r4.metric("RAM (After)",    f"{analysis['recommended_ram']} GB",
+                r3.metric("RAM (Before)",  f"{analysis['original_ram']} GB")
+                r4.metric("RAM (After)",   f"{analysis['recommended_ram']} GB",
                           delta=f"-{analysis['ram_reduction_pct']}%")
 
                 st.markdown(f"""
@@ -509,22 +577,21 @@ with tab2:
         st.markdown('<div class="section-header">💰 On-Premise vs Cloud Cost Analysis</div>',
                     unsafe_allow_html=True)
 
-        best_provider   = analysis["best_provider"]
-        cloud_yearly    = analysis["costs"][best_provider]["selected"]
-        onprem_annual   = result["annual_operational_cost"]
-        onprem_5yr      = result["tco_5yr"]
-        cloud_5yr       = cloud_yearly * 5
-        savings_5yr     = onprem_5yr - cloud_5yr
-        savings_pct     = (savings_5yr / onprem_5yr) * 100 if onprem_5yr else 0
+        best_provider = analysis["best_provider"]
+        cloud_yearly  = analysis["costs"][best_provider]["selected"]
+        onprem_annual = result["annual_operational_cost"]
+        onprem_5yr    = result["tco_5yr"]
+        cloud_5yr     = cloud_yearly * 5
+        savings_5yr   = onprem_5yr - cloud_5yr
+        savings_pct   = (savings_5yr / onprem_5yr) * 100 if onprem_5yr else 0
 
-        # ── Headline metrics ──
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("On-Prem Annual",   inr(onprem_annual))
+        c1.metric("On-Prem Annual",      inr(onprem_annual))
         c2.metric("Cloud Annual (Best)", inr(cloud_yearly),
                   delta=f"-{inr(onprem_annual - cloud_yearly)}")
-        c3.metric("5-Year Savings",   inr(savings_5yr),
+        c3.metric("5-Year Savings",      inr(savings_5yr),
                   delta=f"{savings_pct:.1f}%")
-        c4.metric("Best Provider",    best_provider)
+        c4.metric("Best Provider",       best_provider)
 
         st.markdown("---")
 
@@ -532,7 +599,6 @@ with tab2:
 
         with col_a:
             st.markdown("#### 5-Year TCO Comparison")
-
             fig_bar = go.Figure(data=[
                 go.Bar(name="On-Premise", x=["On-Premise"], y=[onprem_5yr],
                        marker_color="#ef4444", text=[inr(onprem_5yr)],
@@ -542,22 +608,16 @@ with tab2:
                        text=[inr(cloud_5yr)], textposition="auto")
             ])
             fig_bar.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(15,23,42,0.8)",
-                font_color="#e2e8f0",
-                showlegend=False,
-                margin=dict(t=20, b=20),
-                yaxis=dict(gridcolor="#334155")
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,0.8)",
+                font_color="#e2e8f0", showlegend=False,
+                margin=dict(t=20, b=20), yaxis=dict(gridcolor="#334155")
             )
             st.plotly_chart(fig_bar, width="stretch")
 
         with col_b:
             st.markdown("#### Year-by-Year Cost Trajectory")
-
-            years = list(range(1, 6))
-            onprem_capex  = result["total_capex"]
-            onprem_opex   = result["annual_operational_cost"]
-            onprem_cumul  = [onprem_capex + onprem_opex * y for y in years]
+            years         = list(range(1, 6))
+            onprem_cumul  = [result["total_capex"] + onprem_annual * y for y in years]
             cloud_cumul   = [cloud_yearly * y for y in years]
 
             fig_traj = go.Figure()
@@ -570,18 +630,14 @@ with tab2:
                 line=dict(color="#22c55e", width=3), mode="lines+markers"
             ))
             fig_traj.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(15,23,42,0.8)",
-                font_color="#e2e8f0",
-                margin=dict(t=20, b=20),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,0.8)",
+                font_color="#e2e8f0", margin=dict(t=20, b=20),
                 legend=dict(bgcolor="rgba(0,0,0,0)"),
                 xaxis=dict(title="Year", gridcolor="#334155"),
                 yaxis=dict(title="Cumulative Cost (₹)", gridcolor="#334155")
             )
             st.plotly_chart(fig_traj, width="stretch")
 
-        # ── All providers comparison ──
-        # ── Provider logos ──
         st.markdown("#### 🌐 Supported Cloud Providers")
         col_logo1, col_logo2, col_logo3 = st.columns(3)
         col_logo1.markdown("### 🟠 AWS")
@@ -597,20 +653,17 @@ with tab2:
             saving   = onprem_annual - sel_cost
             saving_p = (saving / onprem_annual) * 100 if onprem_annual else 0
             provider_rows.append({
-                "Provider":      provider,
-                "Annual Cost":   sel_cost,
-                "vs On-Prem":    saving,
-                "Savings %":     saving_p,
-                "Instance":      analysis["instances"][provider]["instance"],
-                "vCPU":          analysis["instances"][provider]["vcpu"],
-                "RAM (GB)":      analysis["instances"][provider]["ram_gb"],
-                "Best":          provider == best_provider
+                "Provider":   provider,
+                "Annual Cost": sel_cost,
+                "vs On-Prem": saving,
+                "Savings %":  saving_p,
+                "Instance":   analysis["instances"][provider]["instance"],
+                "vCPU":       analysis["instances"][provider]["vcpu"],
+                "RAM (GB)":   analysis["instances"][provider]["ram_gb"],
+                "Best":       provider == best_provider
             })
 
-        prov_df = pd.DataFrame(provider_rows)
-
-        # Visual provider cards
-        for _, row in prov_df.iterrows():
+        for _, row in pd.DataFrame(provider_rows).iterrows():
             css_class = "provider-row best" if row["Best"] else "provider-row"
             badge     = "⭐ BEST" if row["Best"] else ""
             color     = "#22c55e" if row["vs On-Prem"] > 0 else "#ef4444"
@@ -624,30 +677,24 @@ with tab2:
             </div>
             """, unsafe_allow_html=True)
 
-        # ── Pricing model comparison for best provider ──
         st.markdown(f"#### Pricing Model Breakdown — {best_provider}")
         costs_bp = analysis["costs"][best_provider]
         models   = ["on_demand", "reserved_1yr", "reserved_3yr"]
         labels   = ["On-Demand", "Reserved 1-Year", "Reserved 3-Year"]
         vals     = [costs_bp[m] for m in models]
-        colors   = ["#94a3b8", "#60a5fa", "#2563eb"]
 
         fig_pm = go.Figure(go.Bar(
             x=labels, y=vals,
-            marker_color=colors,
-            text=[inr(v) for v in vals],
-            textposition="auto"
+            marker_color=["#94a3b8", "#60a5fa", "#2563eb"],
+            text=[inr(v) for v in vals], textposition="auto"
         ))
         fig_pm.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(15,23,42,0.8)",
-            font_color="#e2e8f0",
-            margin=dict(t=10, b=10),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,0.8)",
+            font_color="#e2e8f0", margin=dict(t=10, b=10),
             yaxis=dict(gridcolor="#334155")
         )
         st.plotly_chart(fig_pm, width="stretch")
 
-        # ── Financial decision from decision_engine ──
         st.markdown("#### Financial Migration Decision")
         try:
             financial_decision = financial_recommend(
@@ -658,10 +705,10 @@ with tab2:
             summary = financial_decision.get("_summary", {})
 
             if summary.get("overall_recommendation") == "Migrate to Cloud":
-                st.success(f"✅ **Recommendation: Migrate to Cloud**")
+                st.success("✅ **Recommendation: Migrate to Cloud**")
                 cols = st.columns(3)
                 cols[0].metric("Best Provider",  summary.get("best_cloud_option", "N/A"))
-                cols[1].metric("Annual Savings", inr(summary.get('best_savings', 0)))
+                cols[1].metric("Annual Savings", inr(summary.get("best_savings", 0)))
                 cols[2].metric("Confidence",     summary.get("confidence", "N/A"))
                 st.info(f"💡 **Strategy:** {summary.get('strategy', 'N/A')} — {summary.get('reason', '')}")
             else:
@@ -671,9 +718,11 @@ with tab2:
                 for prov, data in financial_decision.items():
                     if prov == "_summary":
                         continue
-                    st.markdown(f"**{prov}** — {data['recommendation']} | "
-                                f"Savings: {inr(data['savings'])} ({data['savings_pct']:.1f}%) | "
-                                f"Confidence: {data['confidence']} | Strategy: {data['strategy']}")
+                    st.markdown(
+                        f"**{prov}** — {data['recommendation']} | "
+                        f"Savings: {inr(data['savings'])} ({data['savings_pct']:.1f}%) | "
+                        f"Confidence: {data['confidence']} | Strategy: {data['strategy']}"
+                    )
         except Exception as e:
             st.warning(f"Decision engine error: {e}")
 
@@ -699,17 +748,17 @@ with tab3:
             st.markdown("#### Risk Parameters")
 
             st.markdown("**🔴 Downtime Risk**")
-            downtime_risk  = st.slider("Downtime Probability",  0.0, 1.0, 0.10, 0.01,
+            downtime_risk  = st.slider("Downtime Probability", 0.0, 1.0, 0.10, 0.01,
                                        help="Probability that significant downtime occurs during migration")
             downtime_cost  = st.number_input("Downtime Cost (₹)", value=50000, step=5000)
 
             st.markdown("**🟡 Compliance Risk**")
-            compliance_risk    = st.slider("Compliance Probability",   0.0, 1.0, 0.05, 0.01)
+            compliance_risk    = st.slider("Compliance Probability", 0.0, 1.0, 0.05, 0.01)
             compliance_penalty = st.number_input("Compliance Penalty (₹)", value=100000, step=10000)
 
             st.markdown("**🟢 Skill Gap Risk**")
-            skill_risk     = st.slider("Skill Gap Probability",  0.0, 1.0, 0.20, 0.01)
-            training_cost  = st.number_input("Training Cost (₹)", value=20000, step=2000)
+            skill_risk    = st.slider("Skill Gap Probability", 0.0, 1.0, 0.20, 0.01)
+            training_cost = st.number_input("Training Cost (₹)", value=20000, step=2000)
 
         with col_results:
             try:
@@ -727,9 +776,8 @@ with tab3:
                 adj_savings    = onprem_annual - adj_cloud_cost
                 adj_savings_p  = (adj_savings / onprem_annual * 100) if onprem_annual else 0
 
-                # ── Persist for report export ──
                 st.session_state["report_risk"] = {
-                    "risk":          risk,
+                    "risk":           risk,
                     "adj_cloud_cost": adj_cloud_cost,
                     "inputs": {
                         "downtime_risk":       downtime_risk,
@@ -749,11 +797,10 @@ with tab3:
                           delta=f"+{inr(risk['total_risk_cost'])} risk")
 
                 m3, m4 = st.columns(2)
-                m3.metric("Base Cloud Cost",   inr(cloud_yearly))
-                m4.metric("Adjusted Savings",  inr(adj_savings),
+                m3.metric("Base Cloud Cost",  inr(cloud_yearly))
+                m4.metric("Adjusted Savings", inr(adj_savings),
                           delta=f"{adj_savings_p:.1f}% vs on-prem")
 
-                # ── Risk breakdown chart ──
                 fig_risk = go.Figure(go.Bar(
                     x=["Downtime Risk", "Compliance Risk", "Skill Gap Risk"],
                     y=[risk["downtime_cost"], risk["compliance_cost"], risk["skill_cost"]],
@@ -765,40 +812,33 @@ with tab3:
                 ))
                 fig_risk.update_layout(
                     title="Expected Risk Cost Breakdown",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(15,23,42,0.8)",
-                    font_color="#e2e8f0",
-                    margin=dict(t=40, b=20),
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,0.8)",
+                    font_color="#e2e8f0", margin=dict(t=40, b=20),
                     yaxis=dict(gridcolor="#334155", title="Expected Cost (₹)")
                 )
                 st.plotly_chart(fig_risk, width="stretch")
 
-                # ── 5-year risk-adjusted comparison ──
-                onprem_5yr   = result["tco_5yr"]
-                cloud_5yr    = cloud_yearly * 5
+                onprem_5yr    = result["tco_5yr"]
+                cloud_5yr     = cloud_yearly * 5
                 adj_cloud_5yr = adj_cloud_cost * 5
 
                 fig_comp = go.Figure(data=[
-                    go.Bar(name="On-Premise 5yr",        y=[onprem_5yr],    marker_color="#ef4444",
+                    go.Bar(name="On-Premise 5yr",       y=[onprem_5yr],    marker_color="#ef4444",
                            text=[inr(onprem_5yr)],    textposition="auto"),
-                    go.Bar(name="Cloud 5yr (base)",       y=[cloud_5yr],     marker_color="#22c55e",
+                    go.Bar(name="Cloud 5yr (base)",      y=[cloud_5yr],     marker_color="#22c55e",
                            text=[inr(cloud_5yr)],     textposition="auto"),
-                    go.Bar(name="Cloud 5yr (risk-adj.)",  y=[adj_cloud_5yr], marker_color="#f59e0b",
+                    go.Bar(name="Cloud 5yr (risk-adj.)", y=[adj_cloud_5yr], marker_color="#f59e0b",
                            text=[inr(adj_cloud_5yr)], textposition="auto"),
                 ])
                 fig_comp.update_layout(
                     title="5-Year: On-Prem vs Cloud vs Risk-Adjusted Cloud",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(15,23,42,0.8)",
-                    font_color="#e2e8f0",
-                    margin=dict(t=40, b=20),
-                    barmode="group",
-                    yaxis=dict(gridcolor="#334155"),
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,0.8)",
+                    font_color="#e2e8f0", margin=dict(t=40, b=20),
+                    barmode="group", yaxis=dict(gridcolor="#334155"),
                     legend=dict(bgcolor="rgba(0,0,0,0)")
                 )
                 st.plotly_chart(fig_comp, width="stretch")
 
-                # ── Migration Readiness Score ──
                 st.markdown("#### 🚀 Migration Readiness Score")
                 risk_factor = risk["total_risk_cost"] / max(cloud_yearly, 1)
                 score = int(max(0, min(100, 60 + adj_savings_p - (risk_factor * 20))))
@@ -810,7 +850,6 @@ with tab3:
                 else:
                     st.warning("Low Readiness — Address Risks First")
 
-                # ── Risk summary box ──
                 if adj_savings > 0:
                     st.markdown(f"""
                     <div class="info-box">
@@ -833,7 +872,7 @@ with tab3:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 4 — Strategy & Rules (Phase 3)
+#  TAB 4 — Strategy & Rules
 # ══════════════════════════════════════════════════════════════════════════════
 with tab4:
 
@@ -879,7 +918,6 @@ with tab4:
 
     with col_out:
         try:
-            # Explicitly cast to str and lowercase — guards against any type coercion
             _compliance = str(compliance_sel).strip().lower()
             _downtime   = str(downtime_sel).strip().lower()
             _growth     = str(growth_sel).strip().lower()
@@ -888,7 +926,6 @@ with tab4:
             dr_plan  = recommend_dr(_downtime)
             roadmap  = get_migration_roadmap(strategy)
 
-            # ── Persist for report export ──
             st.session_state["report_strategy"] = {
                 "strategy": strategy,
                 "dr_plan":  dr_plan,
@@ -900,10 +937,9 @@ with tab4:
                 }
             }
 
-            # Strategy badge
             badge_color = {
-                "Lift-and-Shift":       "badge-blue",
-                "Hybrid Migration":     "badge-orange",
+                "Lift-and-Shift":         "badge-blue",
+                "Hybrid Migration":       "badge-orange",
                 "Cloud-Native Migration": "badge-green"
             }.get(strategy, "badge-blue")
 
@@ -914,7 +950,6 @@ with tab4:
             </div>
             """, unsafe_allow_html=True)
 
-            # DR Plan
             dr_color = {"Hot DR": "#ef4444", "Warm DR": "#f59e0b", "Cold DR": "#22c55e"}.get(dr_plan, "#60a5fa")
             st.markdown(f"""
             <div style="background:#1e293b;border-radius:12px;padding:20px;margin-bottom:16px;">
@@ -923,12 +958,10 @@ with tab4:
             </div>
             """, unsafe_allow_html=True)
 
-            # Roadmap
             st.markdown("#### Migration Roadmap")
             for step in roadmap:
                 st.markdown(f'<div class="roadmap-step">🔷 {step}</div>', unsafe_allow_html=True)
 
-            # ── Strategy Explanation ──
             st.markdown("#### 💡 Why This Strategy?")
             explanation = []
             if _growth == "high":
@@ -947,7 +980,7 @@ with tab4:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 5 — ML Prediction (Phase 4 + 5)
+#  TAB 5 — ML Prediction
 # ══════════════════════════════════════════════════════════════════════════════
 with tab5:
 
@@ -960,19 +993,18 @@ with tab5:
         st.markdown("#### Enterprise Feature Inputs")
         st.caption("These feed directly into the trained Decision Tree model.")
 
-        # Auto-fill from Tab 1 if available
-        default_servers  = st.session_state["servers"]  or 50
+        default_servers  = st.session_state["servers"]    or 50
         default_storage  = st.session_state["storage_tb"] or 20.0
         default_cpu_util = st.session_state["cpu_util"]   or 60
 
-        ml_servers   = st.number_input("Number of Servers",       min_value=5,   max_value=500, value=int(default_servers))
-        ml_cpu       = st.number_input("Average CPU Utilisation (%)", min_value=10,  max_value=90,  value=min(int(default_cpu_util), 90))
-        ml_storage   = st.number_input("Storage Size (TB)",       min_value=1.0, max_value=100.0, value=min(float(default_storage), 100.0), step=1.0)
-        ml_downtime  = st.slider("Downtime Tolerance (hrs)",      0.5, 24.0, 4.0, 0.5)
-        ml_compliance= st.select_slider("Compliance Level",       options=[1, 2, 3],
+        ml_servers    = st.number_input("Number of Servers",           min_value=5,   max_value=500,   value=int(default_servers))
+        ml_cpu        = st.number_input("Average CPU Utilisation (%)", min_value=10,  max_value=90,    value=min(int(default_cpu_util), 90))
+        ml_storage    = st.number_input("Storage Size (TB)",           min_value=1.0, max_value=100.0, value=min(float(default_storage), 100.0), step=1.0)
+        ml_downtime   = st.slider("Downtime Tolerance (hrs)",  0.5, 24.0, 4.0, 0.5)
+        ml_compliance = st.select_slider("Compliance Level",   options=[1, 2, 3],
                                          format_func=lambda x: {1:"Low",2:"Medium",3:"High"}[x], value=2)
-        ml_growth    = st.slider("Growth Rate (%)",               0, 40, 15)
-        ml_budget    = st.select_slider("Budget Flexibility",     options=[1, 2, 3],
+        ml_growth     = st.slider("Growth Rate (%)",           0, 40, 15)
+        ml_budget     = st.select_slider("Budget Flexibility", options=[1, 2, 3],
                                          format_func=lambda x: {1:"Tight",2:"Medium",3:"Flexible"}[x], value=2)
 
         if st.session_state["servers"]:
@@ -994,25 +1026,21 @@ with tab5:
         }
 
         try:
-            ml_result = predict_strategy(features)
+            ml_result   = predict_strategy(features)
             strategy_ml = ml_result["strategy"]
 
-            # ── Persist for report export ──
-            st.session_state["report_ml"] = {
-                **ml_result,
-                "inputs": features
-            }
+            st.session_state["report_ml"] = {**ml_result, "inputs": features}
 
-            # ── Prediction badge ──
             badge_map = {
-                "Hybrid":          ("badge-orange", "🔀"),
-                "Cloud-Native":    ("badge-green",  "☁️"),
-                "Lift-and-Shift":  ("badge-blue",   "🚀")
+                "Hybrid":         ("badge-orange", "🔀"),
+                "Cloud-Native":   ("badge-green",  "☁️"),
+                "Lift-and-Shift": ("badge-blue",   "🚀")
             }
             badge_cls, icon = badge_map.get(strategy_ml, ("badge-purple", "🤖"))
 
             st.markdown(f"""
-            <div style="background:#1e293b;border-radius:12px;padding:24px;margin-bottom:16px;text-align:center;">
+            <div style="background:#1e293b;border-radius:12px;padding:24px;
+                        margin-bottom:16px;text-align:center;">
               <div style="color:#94a3b8;font-size:.85rem;margin-bottom:12px;">ML PREDICTED STRATEGY</div>
               <span class="{badge_cls}" style="font-size:1.2rem;padding:10px 28px;">{icon} {strategy_ml}</span>
               <div style="color:#60a5fa;font-size:.95rem;margin-top:12px;">
@@ -1027,14 +1055,12 @@ with tab5:
                 st.markdown("#### 🔍 Top Influencing Factors")
                 st.caption("Global XAI — feature importance across all predictions")
                 for i, factor in enumerate(ml_result["top_factors"], 1):
-                    importance_pct = [0.40, 0.30, 0.20][i - 1] if i <= 3 else 0.10  # approximate visual
+                    pct = [40, 30, 20][i - 1] if i <= 3 else 10
                     st.markdown(f"""
                     <div style="background:#1e293b;border-radius:6px;padding:10px 14px;margin:5px 0;">
-                      <div style="display:flex;justify-content:space-between;">
-                        <span style="color:#e2e8f0;">#{i} {factor}</span>
-                      </div>
+                      <span style="color:#e2e8f0;">#{i} {factor}</span>
                       <div style="background:#334155;border-radius:4px;height:6px;margin-top:6px;">
-                        <div style="background:#2563eb;height:6px;border-radius:4px;width:{int(importance_pct*100)}%;"></div>
+                        <div style="background:#2563eb;height:6px;border-radius:4px;width:{pct}%;"></div>
                       </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -1043,11 +1069,10 @@ with tab5:
                 st.markdown("#### 🛣️ Decision Path")
                 st.caption("Local XAI — exact rules used for this prediction")
                 for rule in ml_result["decision_path"]:
-                    st.markdown(f'<div class="rule-step">→ {rule}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="rule-step">→ {rule}</div>',
+                                unsafe_allow_html=True)
 
             st.markdown("---")
-
-            # ── Model performance section ──
             st.markdown("#### 📈 Model Performance")
 
             perf_col1, perf_col2 = st.columns(2)
@@ -1055,35 +1080,32 @@ with tab5:
             with perf_col1:
                 st.markdown("**Confusion Matrix**")
                 try:
-                    cm_img = Image.open("models/confusion_matrix.png")
-                    st.image(cm_img, width="stretch")
+                    st.image(Image.open("models/confusion_matrix.png"),
+                             width="stretch")
                 except:
                     st.info("confusion_matrix.png not found in models/")
 
             with perf_col2:
                 st.markdown("**Decision Tree Visualisation**")
                 try:
-                    dt_img = Image.open("models/decision_tree_visual.png")
-                    st.image(dt_img, width="stretch",
+                    st.image(Image.open("models/decision_tree_visual.png"),
+                             width="stretch",
                              caption="Trained Decision Tree (max_depth=5)")
                 except:
                     st.info("decision_tree_visual.png not found in models/")
 
-            # ── Feature importance bar chart ──
             st.markdown("#### Feature Importance (Global)")
             try:
                 import joblib as jl
-                model_loaded   = jl.load("models/decision_tree.pkl")
-                feat_names     = ["server_count","avg_cpu_util","storage_tb",
-                                  "downtime_tolerance","compliance_level",
-                                  "growth_rate","budget_sensitivity"]
-                feat_labels    = ["Servers","CPU Util","Storage","Downtime Tol.",
-                                  "Compliance","Growth Rate","Budget Flex."]
-                importances    = model_loaded.feature_importances_
-
+                model_loaded = jl.load("models/decision_tree.pkl")
+                feat_names   = ["server_count","avg_cpu_util","storage_tb",
+                                "downtime_tolerance","compliance_level",
+                                "growth_rate","budget_sensitivity"]
+                feat_labels  = ["Servers","CPU Util","Storage","Downtime Tol.",
+                                "Compliance","Growth Rate","Budget Flex."]
                 fi_df = pd.DataFrame({
                     "Feature":    feat_labels,
-                    "Importance": importances
+                    "Importance": model_loaded.feature_importances_
                 }).sort_values("Importance", ascending=True)
 
                 fig_fi = px.bar(
@@ -1093,13 +1115,10 @@ with tab5:
                     title="Decision Tree Feature Importances"
                 )
                 fig_fi.update_layout(
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(15,23,42,0.8)",
-                    font_color="#e2e8f0",
-                    margin=dict(t=40, b=10, l=10, r=10),
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,0.8)",
+                    font_color="#e2e8f0", margin=dict(t=40, b=10, l=10, r=10),
                     coloraxis_showscale=False,
-                    yaxis=dict(gridcolor="#334155"),
-                    xaxis=dict(gridcolor="#334155")
+                    yaxis=dict(gridcolor="#334155"), xaxis=dict(gridcolor="#334155")
                 )
                 st.plotly_chart(fig_fi, width="stretch")
             except Exception as e:
@@ -1108,7 +1127,6 @@ with tab5:
         except Exception as e:
             st.error(f"ML Prediction error: {e}")
             st.caption("Ensure models/decision_tree.pkl and models/label_encoder.pkl exist.")
-
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1143,17 +1161,19 @@ with tab6:
     with col_status:
         st.markdown("#### 📋 Report Contents")
         phase_checks = [
-            ("📦 Phase 1 — On-Premise TCO",   report_data["tco"]),
-            ("💰 Phase 2 — Cost Analysis",     report_data["cloud"]),
-            ("⚠️  Phase 3 — Risk Analysis",    report_data["risk"]),
-            ("🧭 Phase 4 — Rule Strategy",     report_data["strategy"]),
-            ("🤖 Phase 5 — ML Prediction",     report_data["ml"]),
+            ("📦 Phase 1 — On-Premise TCO",  report_data["tco"]),
+            ("💰 Phase 2 — Cost Analysis",    report_data["cloud"]),
+            ("⚠️  Phase 3 — Risk Analysis",   report_data["risk"]),
+            ("🧭 Phase 4 — Rule Strategy",    report_data["strategy"]),
+            ("🤖 Phase 5 — ML Prediction",    report_data["ml"]),
         ]
         for label, data in phase_checks:
-            tick = "✅" if data else "⬜"
+            tick  = "✅" if data else "⬜"
             color = "#22c55e" if data else "#475569"
             st.markdown(
-                f'<div style="padding:8px 12px;background:#1e293b;border-radius:6px;'                f'margin:4px 0;border-left:3px solid {color};">'                f'{tick} {label}</div>',
+                f'<div style="padding:8px 12px;background:#1e293b;border-radius:6px;'
+                f'margin:4px 0;border-left:3px solid {color};">'
+                f'{tick} {label}</div>',
                 unsafe_allow_html=True
             )
 
@@ -1175,8 +1195,6 @@ with tab6:
         st.markdown("#### 📥 Download Options")
 
         if phases_done > 0:
-
-            # ── HTML Report ──
             html_report = generate_html_report(report_data)
             st.download_button(
                 label="📄 Download HTML Report",
@@ -1192,7 +1210,6 @@ with tab6:
             </div>
             """, unsafe_allow_html=True)
 
-            # ── CSV Export ──
             csv_data = generate_csv_export(report_data)
             st.download_button(
                 label="📊 Download CSV Data Export",
@@ -1207,25 +1224,25 @@ with tab6:
             </div>
             """, unsafe_allow_html=True)
 
-            # ── Report preview ──
             st.markdown("---")
             st.markdown("#### 🔍 Report Preview")
             st.caption("Sections included in the HTML report:")
-            preview_items = [
-                ("Cover page",          "Organisation name, date, pricing model, phase index"),
-                ("Executive Summary",   "Key metrics table across all phases at a glance"),
-                ("Phase 1 — TCO",       "Cost breakdown table + CapEx/OpEx + 5yr projection"),
-                ("Phase 2 — Cost",      "Right-sizing table + provider comparison + savings"),
-                ("Phase 3 — Risk",      "Risk factor table + adjusted costs + verdict banner"),
-                ("Phase 4 — Strategy",  "Migration strategy + DR plan + phased roadmap"),
-                ("Phase 5 — ML",        "Prediction + confidence + XAI factors + decision path"),
-            ]
-            for title, desc in preview_items:
+            for title, desc in [
+                ("Cover page",         "Organisation name, date, pricing model, phase index"),
+                ("Executive Summary",  "Key metrics table across all phases at a glance"),
+                ("Phase 1 — TCO",      "Cost breakdown table + CapEx/OpEx + 5yr projection"),
+                ("Phase 2 — Cost",     "Right-sizing table + provider comparison + savings"),
+                ("Phase 3 — Risk",     "Risk factor table + adjusted costs + verdict banner"),
+                ("Phase 4 — Strategy", "Migration strategy + DR plan + phased roadmap"),
+                ("Phase 5 — ML",       "Prediction + confidence + XAI factors + decision path"),
+            ]:
                 st.markdown(
-                    f'<div style="display:flex;gap:10px;padding:7px 12px;'                    f'background:#1e293b;border-radius:6px;margin:3px 0;">'                    f'<span style="color:#60a5fa;font-weight:600;min-width:160px;">{title}</span>'                    f'<span style="color:#94a3b8;font-size:.85rem;">{desc}</span></div>',
+                    f'<div style="display:flex;gap:10px;padding:7px 12px;'
+                    f'background:#1e293b;border-radius:6px;margin:3px 0;">'
+                    f'<span style="color:#60a5fa;font-weight:600;min-width:160px;">{title}</span>'
+                    f'<span style="color:#94a3b8;font-size:.85rem;">{desc}</span></div>',
                     unsafe_allow_html=True
                 )
-
         else:
             st.markdown("""
             <div class="info-box" style="text-align:center;padding:32px;">
