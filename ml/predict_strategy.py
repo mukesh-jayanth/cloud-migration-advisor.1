@@ -15,9 +15,11 @@ from sklearn.tree import _tree
 #    • Human-readable explanations
 # ─────────────────────────────────────────────
 
+import os
 # ── Load Model & Encoder ──────────────────────
-model   = joblib.load("models/decision_tree.pkl")
-encoder = joblib.load("models/label_encoder.pkl")
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+model   = joblib.load(os.path.join(BASE_DIR, "models", "decision_tree.pkl"))
+encoder = joblib.load(os.path.join(BASE_DIR, "models", "label_encoder.pkl"))
 
 # ── Feature Definitions ───────────────────────
 feature_names = [

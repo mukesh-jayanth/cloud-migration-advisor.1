@@ -10,6 +10,9 @@ import plotly.graph_objects as go
 from PIL import Image
 import sys
 import os
+import logging
+
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # ── Path setup ────────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.dirname(__file__))
@@ -375,7 +378,8 @@ with tab1:
 
             # ── Sample file download ──
             try:
-                with open("data/sample_infrastructure.xlsx", "rb") as _f:
+                sample_path = os.path.join(os.path.dirname(__file__), "data", "sample_infrastructure.xlsx")
+                with open(sample_path, "rb") as _f:
                     _sample_bytes = _f.read()
                 st.download_button(
                     label="⬇️ Download Sample Excel Template",
@@ -470,8 +474,12 @@ with tab1:
                 st.session_state["vcpu_input"] = vcpu_input
                 st.session_state["ram_input"]  = ram_input
                 st.success("✅ Cloud analysis complete — see other tabs!")
+            except ValueError as ve:
+                st.error("⚠️ **Input Validation Error:** The provided input triggered a validation rule.")
+                st.info(f"Details: {ve}")
             except Exception as e:
-                st.error(f"Cloud analysis error: {e}")
+                st.error("⚠️ **Unexpected Error:** We encountered an issue while running the cloud analysis.")
+                st.info("Please verify your input values and try again.")
 
     with col_right:
         result = st.session_state["tco_result"]
@@ -724,7 +732,7 @@ with tab2:
                         f"Confidence: {data['confidence']} | Strategy: {data['strategy']}"
                     )
         except Exception as e:
-            st.warning(f"Decision engine error: {e}")
+            st.warning("⚠️ **Decision Engine Error:** Could not calculate the financial recommendation. Please ensure cloud analysis ran successfully.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -868,7 +876,7 @@ with tab3:
                     """, unsafe_allow_html=True)
 
             except Exception as e:
-                st.error(f"Risk calculation error: {e}")
+                st.error("⚠️ **Risk Calculation Failed:** Could not compute the risk-adjusted costs. Please verify that all parameters are valid.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -976,7 +984,8 @@ with tab4:
                 st.markdown(f"• {point}")
 
         except Exception as e:
-            st.error(f"Strategy engine error: {e}")
+            st.error("⚠️ **Strategy Engine Error:** The rule-based engine failed to process the inputs.")
+            st.info("Please ensure all drop-downs reflect a valid choice.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1080,24 +1089,24 @@ with tab5:
             with perf_col1:
                 st.markdown("**Confusion Matrix**")
                 try:
-                    st.image(Image.open("models/confusion_matrix.png"),
-                             width="stretch")
+                    cm_path = os.path.join(os.path.dirname(__file__), "models", "confusion_matrix.png")
+                    st.image(Image.open(cm_path), width="stretch")
                 except:
                     st.info("confusion_matrix.png not found in models/")
 
             with perf_col2:
                 st.markdown("**Decision Tree Visualisation**")
                 try:
-                    st.image(Image.open("models/decision_tree_visual.png"),
-                             width="stretch",
-                             caption="Trained Decision Tree (max_depth=5)")
+                    dt_path = os.path.join(os.path.dirname(__file__), "models", "decision_tree_visual.png")
+                    st.image(Image.open(dt_path), width="stretch", caption="Trained Decision Tree (max_depth=5)")
                 except:
                     st.info("decision_tree_visual.png not found in models/")
 
             st.markdown("#### Feature Importance (Global)")
             try:
                 import joblib as jl
-                model_loaded = jl.load("models/decision_tree.pkl")
+                dt_model_path = os.path.join(os.path.dirname(__file__), "models", "decision_tree.pkl")
+                model_loaded = jl.load(dt_model_path)
                 feat_names   = ["server_count","avg_cpu_util","storage_tb",
                                 "downtime_tolerance","compliance_level",
                                 "growth_rate","budget_sensitivity"]
@@ -1125,8 +1134,8 @@ with tab5:
                 st.warning(f"Could not load feature importances: {e}")
 
         except Exception as e:
-            st.error(f"ML Prediction error: {e}")
-            st.caption("Ensure models/decision_tree.pkl and models/label_encoder.pkl exist.")
+            st.error("⚠️ **Machine Learning Engine Error:** The prediction could not be generated.")
+            st.info("Make sure you have valid numeric inputs and that the required model files are present in the models/ directory.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

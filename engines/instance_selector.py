@@ -3,7 +3,9 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-DATA_PATH = "data/cloud_instances.csv"
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "data", "cloud_instances.csv")
 
 # -------------------------------
 # Workload Classification Thresholds
@@ -189,7 +191,7 @@ def find_best_instances(vcpu_required: int, ram_required: float) -> dict:
     results = {}
     skipped_providers = []
 
-    for provider in ["AWS", "Azure", "GCP"]:
+    for provider in suitable["provider"].unique():
         provider_df = suitable[suitable["provider"] == provider]
 
         if provider_df.empty:

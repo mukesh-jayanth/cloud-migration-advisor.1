@@ -25,7 +25,8 @@ def generate_html_report(report_data: dict) -> str:
         Full HTML string — ready to download as .html
     """
     generated_at = datetime.now().strftime("%d %B %Y, %H:%M")
-    org_name     = report_data.get("org_name", "Organisation")
+    import html
+    org_name     = html.escape(report_data.get("org_name", "Organisation"))
     pricing_label = {
         "on_demand":    "On-Demand",
         "reserved_1yr": "Reserved 1-Year",
