@@ -42,7 +42,7 @@ from engines.cloud_cost_engine import (
     run_cloud_analysis,
     PRICING_MODELS,
     HOURS_PER_YEAR,
-    SAFETY_BUFFER,
+    RIGHTSIZING_BUFFER,
 )
 from engines.rule_engine import (
     recommend_strategy as rule_recommend,
@@ -52,7 +52,9 @@ from engines.rule_engine import (
     MIGRATION_ROADMAPS,
 )
 from engines.decision_engine import recommend_strategy as financial_recommend
-from ml.predict_strategy import predict_strategy
+from ml.zombie_detector import detect_zombie_servers
+from ml.risk_nlp import analyze_migration_concerns
+from ml.predict_strategy import calculate_failure_probability, generate_friction_report
 from report_generator import generate_html_report, generate_csv_export
 
 
@@ -432,7 +434,7 @@ class TestCloudCostEngine:
         required_ram = 32 × 0.5 × 1.3 = 20.8 → nearest std = 16 or 32
         """
         vcpu, ram = recommend_resources(8, 32, 50, 50)
-        assert vcpu == math.ceil(8 * 0.5 * SAFETY_BUFFER)
+        assert vcpu == math.ceil(8 * 0.5 * RIGHTSIZING_BUFFER)
 
     def test_right_sizing_low_utilisation_reduces_resources(self):
         """Low utilisation should recommend fewer resources than current."""
@@ -708,251 +710,154 @@ class TestDecisionEngine:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  6. ML PREDICTION ENGINE
+#  6. ZOMBIE SERVER DETECTOR
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestMLPrediction:
+class TestZombieDetector:
 
-    VALID_STRATEGIES = {"Hybrid", "Cloud-Native", "Lift-and-Shift"}
+    def test_detects_zombie_high_ram_low_util(self):
+        result = detect_zombie_servers([
+            {"name": "db-01", "ram_gb": 128, "vcpu": 32, "cpu_util_pct": 1.2},
+        ])
+        assert result["zombie_count"] == 1
+        assert result["zombies"][0]["severity"] in ("Critical", "High")
 
-    # ── Valid prediction ──
+    def test_no_zombie_when_utilisation_healthy(self):
+        result = detect_zombie_servers([
+            {"name": "web-01", "ram_gb": 16, "vcpu": 4, "cpu_util_pct": 65.0},
+        ])
+        assert result["zombie_count"] == 0
+        assert result["inventory_integrity"] == "CLEAN"
 
-    def test_returns_valid_strategy(self):
-        result = predict_strategy(_base_features())
-        assert result["strategy"] in self.VALID_STRATEGIES
+    def test_multiple_zombies_returns_warning_or_critical(self):
+        result = detect_zombie_servers([
+            {"name": "z1", "ram_gb": 64, "vcpu": 16, "cpu_util_pct": 2.0},
+            {"name": "z2", "ram_gb": 32, "vcpu": 8,  "cpu_util_pct": 3.0},
+            {"name": "ok", "ram_gb": 8,  "vcpu": 2,  "cpu_util_pct": 80.0},
+        ])
+        assert result["zombie_count"] == 2
+        assert result["inventory_integrity"] in ("WARNING", "CRITICAL")
 
-    def test_confidence_is_percentage_string(self):
-        result = predict_strategy(_base_features())
-        conf   = result["confidence"]
-        assert conf.endswith("%")
-        pct = float(conf.replace("%", ""))
-        assert 0.0 < pct <= 100.0
+    def test_empty_server_list(self):
+        result = detect_zombie_servers([])
+        assert result["zombie_count"] == 0
+        assert result["total_servers"] == 0
 
-    def test_top_factors_returns_three_items(self):
-        result = predict_strategy(_base_features())
-        assert len(result["top_factors"]) == 3
+    def test_potential_savings_pct_non_negative(self):
+        result = detect_zombie_servers([
+            {"name": "s1", "ram_gb": 64, "vcpu": 8, "cpu_util_pct": 1.0},
+        ])
+        assert result["potential_savings_pct"] >= 0
 
-    def test_top_factors_are_human_readable_strings(self):
-        result = predict_strategy(_base_features())
-        for factor in result["top_factors"]:
-            assert isinstance(factor, str) and len(factor) > 0
-            # Should not be raw feature names like "server_count"
-            assert "_" not in factor or " " in factor
-
-    def test_decision_path_is_non_empty_list(self):
-        result = predict_strategy(_base_features())
-        assert isinstance(result["decision_path"], list)
-        assert len(result["decision_path"]) > 0
-
-    def test_decision_path_entries_are_strings(self):
-        result = predict_strategy(_base_features())
-        for step in result["decision_path"]:
-            assert isinstance(step, str) and len(step) > 0
-
-    def test_result_dict_has_all_keys(self):
-        result = predict_strategy(_base_features())
-        assert {"strategy", "confidence", "top_factors", "decision_path"} \
-               .issubset(result.keys())
-
-    # ── Boundary values ──
-
-    def test_min_boundary_values(self):
-        """Minimum valid values for every feature should not raise."""
-        features = _base_features(
-            server_count=5, avg_cpu_util=10, storage_tb=1.0,
-            downtime_tolerance=0.5, compliance_level=1,
-            growth_rate=0, budget_sensitivity=1
-        )
-        result = predict_strategy(features)
-        assert result["strategy"] in self.VALID_STRATEGIES
-
-    def test_max_boundary_values(self):
-        """Maximum valid values for every feature should not raise."""
-        features = _base_features(
-            server_count=500, avg_cpu_util=90, storage_tb=100.0,
-            downtime_tolerance=24.0, compliance_level=3,
-            growth_rate=40, budget_sensitivity=3
-        )
-        result = predict_strategy(features)
-        assert result["strategy"] in self.VALID_STRATEGIES
-
-    # ── High compliance + low downtime profile → expect Hybrid ──
-
-    def test_high_compliance_low_downtime_predicts_hybrid(self):
-        """
-        Mirrors the Hybrid labelling logic in generate_dataset.py:
-        compliance_level=3 (high) + downtime_tolerance<2 → Hybrid
-        """
-        features = _base_features(
-            compliance_level=3,
-            downtime_tolerance=1.0,
-            growth_rate=10,
-            budget_sensitivity=1
-        )
-        result = predict_strategy(features)
-        assert result["strategy"] == "Hybrid"
-
-    def test_high_growth_flexible_budget_predicts_cloud_native(self):
-        """
-        Mirrors the Cloud-Native labelling logic:
-        growth_rate>25 + budget_sensitivity>=2 → Cloud-Native
-        """
-        features = _base_features(
-            growth_rate=35,
-            budget_sensitivity=3,
-            compliance_level=1,
-            downtime_tolerance=10.0
-        )
-        result = predict_strategy(features)
-        assert result["strategy"] == "Cloud-Native"
-
-    def test_large_low_util_estate_predicts_lift_and_shift(self):
-        """
-        Mirrors labelling logic: server_count>200 + avg_cpu_util<40 → Lift-and-Shift
-        """
-        features = _base_features(
-            server_count=300,
-            avg_cpu_util=20,
-            budget_sensitivity=1,
-            downtime_tolerance=15.0,
-            compliance_level=1,
-            growth_rate=5
-        )
-        result = predict_strategy(features)
-        assert result["strategy"] == "Lift-and-Shift"
-
-    # ── Out-of-range rejection ──
-
-    def test_server_count_below_min_raises(self):
-        with pytest.raises(ValueError, match="out of range"):
-            predict_strategy(_base_features(server_count=4))
-
-    def test_server_count_above_max_raises(self):
-        with pytest.raises(ValueError, match="out of range"):
-            predict_strategy(_base_features(server_count=501))
-
-    def test_cpu_util_below_min_raises(self):
-        with pytest.raises(ValueError, match="out of range"):
-            predict_strategy(_base_features(avg_cpu_util=9))
-
-    def test_cpu_util_above_max_raises(self):
-        with pytest.raises(ValueError, match="out of range"):
-            predict_strategy(_base_features(avg_cpu_util=91))
-
-    def test_compliance_level_below_min_raises(self):
-        with pytest.raises(ValueError, match="out of range"):
-            predict_strategy(_base_features(compliance_level=0))
-
-    def test_compliance_level_above_max_raises(self):
-        with pytest.raises(ValueError, match="out of range"):
-            predict_strategy(_base_features(compliance_level=4))
-
-    def test_growth_rate_below_min_raises(self):
-        with pytest.raises(ValueError, match="out of range"):
-            predict_strategy(_base_features(growth_rate=-1))
-
-    def test_growth_rate_above_max_raises(self):
-        with pytest.raises(ValueError, match="out of range"):
-            predict_strategy(_base_features(growth_rate=41))
-
-    # ── Type rejection ──
-
-    def test_string_feature_raises_value_error(self):
-        with pytest.raises(ValueError):
-            predict_strategy(_base_features(server_count="fifty"))
-
-    def test_none_feature_raises_value_error(self):
-        with pytest.raises(ValueError):
-            predict_strategy(_base_features(growth_rate=None))
-
-    def test_missing_feature_raises_value_error(self):
-        features = _base_features()
-        del features["compliance_level"]
-        with pytest.raises(ValueError, match="Missing features"):
-            predict_strategy(features)
+    def test_zombie_has_recommendation(self):
+        result = detect_zombie_servers([
+            {"name": "db-01", "ram_gb": 128, "vcpu": 32, "cpu_util_pct": 0.5},
+        ])
+        assert result["zombie_count"] == 1
+        assert len(result["zombies"][0]["recommendation"]) > 0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  7. RULE vs ML CONSISTENCY
+#  7. NLP RISK CLASSIFIER
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestRuleVsML:
-    """
-    Compares rule engine and ML predictions on shared scenario matrix.
+class TestNLPRiskClassifier:
 
-    Both engines were trained/designed on the same expert logic, so for
-    strong scenarios (clear-cut inputs) they should agree. The test
-    asserts agreement on the three anchor cases that directly map
-    generate_dataset.py's labelling conditions to rule_engine.py's rule table.
-    """
+    def test_detects_data_security_concerns(self):
+        result = analyze_migration_concerns("worried about data breaches and GDPR")
+        labels = [c["label"] for c in result["detected_categories"]]
+        assert "Data Security & Compliance" in labels
 
-    # Mapping: rule_engine level → ML feature numeric
-    _compliance_map = {"low": 1, "medium": 2, "high": 3}
-    _budget_map     = {"low": 1, "medium": 2, "high": 3}
-    _growth_map     = {"low": 5, "medium": 15, "high": 30}
-    _downtime_map   = {"low": 1.0, "medium": 6.0, "high": 14.0}
+    def test_detects_skill_gap_concerns(self):
+        result = analyze_migration_concerns("our team has no Kubernetes experience")
+        labels = [c["label"] for c in result["detected_categories"]]
+        assert "Skill Gap & Team Readiness" in labels
 
-    def _ml_strategy(self, compliance, downtime, growth,
-                     budget="medium", servers=50, cpu=50,
-                     storage=20.0):
-        features = {
-            "server_count":       servers,
-            "avg_cpu_util":       cpu,
-            "storage_tb":         storage,
-            "downtime_tolerance": self._downtime_map[downtime],
-            "compliance_level":   self._compliance_map[compliance],
-            "growth_rate":        self._growth_map[growth],
-            "budget_sensitivity": self._budget_map[budget],
-        }
-        return predict_strategy(features)["strategy"]
+    def test_detects_multiple_categories(self):
+        text = "budget is tight, worried about data loss, team needs training, delays are likely"
+        result = analyze_migration_concerns(text, cloud_annual=100000)
+        assert len(result["detected_categories"]) >= 3
+        assert result["risk_score"] >= 3
 
-    # The three anchor cases from the rule table comments
-    SCENARIO_MATRIX = [
-        # (compliance, downtime, growth, budget, expected_rule, expected_ml)
-        ("high", "low",  "medium", "medium", "Hybrid Migration",       "Hybrid"),
-        ("low",  "high", "high",   "high",   "Cloud-Native Migration", "Cloud-Native"),
-        ("low",  "high", "low",    "low",    "Lift-and-Shift",         "Lift-and-Shift"),
-    ]
+    def test_empty_text_returns_no_risk(self):
+        result = analyze_migration_concerns("")
+        assert result["risk_level"] == "None"
+        assert result["detected_categories"] == []
 
-    def test_rule_engine_on_scenario_matrix(self):
-        for compliance, downtime, growth, _, expected_rule, _ in self.SCENARIO_MATRIX:
-            result = rule_recommend(compliance, downtime, growth)
-            assert result == expected_rule, \
-                f"Rule engine: ({compliance},{downtime},{growth}) → {result}, expected {expected_rule}"
+    def test_no_keywords_returns_empty(self):
+        result = analyze_migration_concerns("The weather is nice today")
+        assert result["detected_categories"] == []
 
-    def test_ml_engine_on_scenario_matrix(self):
-        for compliance, downtime, growth, budget, _, expected_ml in self.SCENARIO_MATRIX:
-            result = self._ml_strategy(compliance, downtime, growth, budget)
-            assert result == expected_ml, \
-                f"ML engine: ({compliance},{downtime},{growth},{budget}) → {result}, expected {expected_ml}"
+    def test_probability_adjustments_structure(self):
+        result = analyze_migration_concerns("worried about skill gap and downtime")
+        adj = result["probability_adjustments"]
+        assert isinstance(adj, dict)
+        for field, val in adj.items():
+            assert 0 < val <= 0.90
 
-    def test_rule_and_ml_agree_on_anchor_cases(self):
-        """
-        Rule strategy and ML strategy should map to the same broad decision
-        on strongly-characterised anchor scenarios.
-        """
-        STRATEGY_MAP = {
-            "Hybrid Migration":       "Hybrid",
-            "Cloud-Native Migration": "Cloud-Native",
-            "Lift-and-Shift":         "Lift-and-Shift",
-        }
-        for compliance, downtime, growth, budget, expected_rule, expected_ml \
-                in self.SCENARIO_MATRIX:
-            rule_result = rule_recommend(compliance, downtime, growth)
-            ml_result   = self._ml_strategy(compliance, downtime, growth, budget)
-            rule_mapped = STRATEGY_MAP[rule_result]
-            assert rule_mapped == ml_result, (
-                f"DISAGREEMENT on ({compliance},{downtime},{growth},{budget}): "
-                f"Rule={rule_result} → {rule_mapped}, ML={ml_result}"
-            )
+    def test_financial_penalty_scales_with_cloud_cost(self):
+        r1 = analyze_migration_concerns("data breach risk", cloud_annual=100000)
+        r2 = analyze_migration_concerns("data breach risk", cloud_annual=500000)
+        assert r2["total_penalty"] > r1["total_penalty"]
 
-    def test_all_27_rule_combinations_produce_valid_strategies(self):
-        """Every combination must return one of the three defined strategies."""
-        valid = {"Lift-and-Shift", "Hybrid Migration", "Cloud-Native Migration"}
-        for c in VALID_LEVELS:
-            for d in VALID_LEVELS:
-                for g in VALID_LEVELS:
-                    assert rule_recommend(c, d, g) in valid
+    def test_zero_cloud_cost_gives_zero_penalty(self):
+        result = analyze_migration_concerns("budget concerns", cloud_annual=0)
+        assert result["total_penalty"] == 0.0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  7b. FAILURE PROBABILITY PREDICTOR
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestFailureProbability:
+
+    def test_low_risk_strategy_with_good_conditions(self):
+        fp = calculate_failure_probability(
+            strategy="Lift-and-Shift", budget_level="high",
+            servers=10, annual_saving=50000,
+        )
+        assert fp["risk_tier"] == "Low"
+        assert fp["final_probability"] < 0.15
+
+    def test_high_risk_cloud_native_low_budget(self):
+        fp = calculate_failure_probability(
+            strategy="Cloud-Native Migration", budget_level="low",
+            servers=100, migration_premium=500000, annual_saving=20000,
+            zombie_count=3, nlp_risk_score=8,
+        )
+        assert fp["risk_tier"] in ("High", "Critical")
+        assert fp["final_probability"] >= 0.35
+
+    def test_skilled_team_reduces_probability(self):
+        base = calculate_failure_probability(
+            strategy="Hybrid Migration", budget_level="medium", servers=30,
+        )
+        with_team = calculate_failure_probability(
+            strategy="Hybrid Migration", budget_level="medium", servers=30,
+            has_skilled_team=True,
+        )
+        assert with_team["final_probability"] < base["final_probability"]
+
+    def test_negative_roi_increases_risk(self):
+        fp = calculate_failure_probability(
+            strategy="Lift-and-Shift", budget_level="medium",
+            servers=20, migration_premium=100000, annual_saving=-5000,
+        )
+        assert any("Negative ROI" in a["factor"] for a in fp["adjustments"])
+
+    def test_probability_clamped_between_bounds(self):
+        fp = calculate_failure_probability(
+            strategy="Cloud-Native Migration", budget_level="low",
+            servers=500, migration_premium=2000000, annual_saving=-50000,
+            zombie_count=10, nlp_risk_score=20,
+        )
+        assert 0.02 <= fp["final_probability"] <= 0.95
+
+    def test_verdict_is_non_empty_string(self):
+        fp = calculate_failure_probability(
+            strategy="Lift-and-Shift", budget_level="medium", servers=10,
+        )
+        assert isinstance(fp["verdict"], str) and len(fp["verdict"]) > 0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1020,15 +925,15 @@ class TestIntegration:
         cloud = run_cloud_analysis(4, 16, 30, 40, tco["servers"], "on_demand")
         risk  = calculate_risk_adjustment(0.05, 20000, 0.02, 50000, 0.1, 10000)
         adj   = risk_adjusted_tco(cloud["costs"][cloud["best_provider"]]["selected"], risk)
-        strat = rule_recommend("low", "high", "low")
-        ml    = predict_strategy(_base_features(
-            server_count=tco["servers"],
-            storage_tb=min(tco["storage_tb"], 100)
-        ))
+        strat_result = rule_recommend("low", "high", "low")
+        strat = strat_result["strategy"] if isinstance(strat_result, dict) else strat_result
+        fp    = calculate_failure_probability(
+            strategy=strat, budget_level="low", servers=tco["servers"]
+        )
         assert tco["tco_5yr"] > 0
         assert adj > 0
         assert strat == "Lift-and-Shift"
-        assert ml["strategy"] in {"Hybrid", "Cloud-Native", "Lift-and-Shift"}
+        assert fp["final_probability"] >= 0.02
 
     def test_pipeline_with_large_preset(self):
         """Large preset → full pipeline should complete without error."""
@@ -1036,7 +941,8 @@ class TestIntegration:
         cloud = run_cloud_analysis(16, 64, 45, 50, min(tco["servers"], 200), "reserved_1yr")
         risk  = calculate_risk_adjustment(0.15, 200000, 0.10, 500000, 0.25, 80000)
         adj   = risk_adjusted_tco(cloud["costs"][cloud["best_provider"]]["selected"], risk)
-        strat = rule_recommend("high", "low", "medium")
+        strat_result = rule_recommend("high", "low", "medium")
+        strat = strat_result["strategy"] if isinstance(strat_result, dict) else strat_result
         assert tco["tco_5yr"] > 0
         assert adj > 0
         assert strat == "Hybrid Migration"
@@ -1054,11 +960,13 @@ class TestReportGenerator:
         cloud = run_cloud_analysis(8, 32, 60, 70, 20, "on_demand")
         risk_raw = calculate_risk_adjustment(0.1, 50000, 0.05, 100000, 0.2, 20000)
         adj      = risk_adjusted_tco(cloud["costs"][cloud["best_provider"]]["selected"], risk_raw)
-        strat    = rule_recommend("medium", "medium", "high")
+        strat_result = rule_recommend("medium", "medium", "high")
+        strat    = strat_result["strategy"] if isinstance(strat_result, dict) else strat_result
         dr       = recommend_dr("medium")
         rm       = get_migration_roadmap(strat)
-        features = _base_features()
-        ml       = predict_strategy(features)
+        fp = calculate_failure_probability(
+            strategy=strat, budget_level="medium", servers=20
+        )
 
         return {
             "org_name":      "Test Corp",
@@ -1077,7 +985,16 @@ class TestReportGenerator:
                 "strategy": strat, "dr_plan": dr, "roadmap": rm,
                 "inputs": {"compliance": "medium", "downtime": "medium", "growth": "high"}
             },
-            "ml": {**ml, "inputs": features},
+            "ml": {
+                "friction_risk": "Medium",
+                "friction_narrative": "Test narrative",
+                "warnings": [],
+                "failure_probability": fp["final_probability"],
+                "failure_tier": fp["risk_tier"],
+                "failure_verdict": fp["verdict"],
+                "zombie_count": 0,
+                "waste_pct": 0,
+            },
         }
 
     # ── HTML report ──
@@ -1108,10 +1025,9 @@ class TestReportGenerator:
         html = generate_html_report(full_report_data)
         assert "Migration Roadmap" in html
 
-    def test_html_report_contains_ml_strategy(self, full_report_data):
+    def test_html_report_contains_ml_section(self, full_report_data):
         html = generate_html_report(full_report_data)
-        ml_strategy = full_report_data["ml"]["strategy"]
-        assert ml_strategy in html
+        assert "Phase 5" in html
 
     def test_html_report_is_valid_html(self, full_report_data):
         html = generate_html_report(full_report_data)
@@ -1160,5 +1076,5 @@ class TestReportGenerator:
     def test_csv_export_contains_key_metrics(self, full_report_data):
         csv = generate_csv_export(full_report_data)
         for metric in ["5-Year TCO", "Best Provider", "Total Risk Cost",
-                       "Recommended Strategy", "ML Strategy"]:
+                       "Recommended Strategy"]:
             assert metric in csv, f"Missing CSV metric: {metric}"

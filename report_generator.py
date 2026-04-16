@@ -33,11 +33,13 @@ def generate_html_report(report_data: dict) -> str:
         "reserved_3yr": "Reserved 3-Year"
     }.get(report_data.get("pricing_model", "on_demand"), "On-Demand")
 
-    tco      = report_data.get("tco")
-    cloud    = report_data.get("cloud")
-    risk     = report_data.get("risk")
-    strategy = report_data.get("strategy")
-    ml       = report_data.get("ml")
+    tco            = report_data.get("tco")
+    cloud          = report_data.get("cloud")
+    risk           = report_data.get("risk")
+    strategy       = report_data.get("strategy")
+    ml             = report_data.get("ml")
+    migration_econ = report_data.get("migration_econ")
+    audit_data     = report_data.get("audit")
 
     USD_TO_INR = 84.0
 
@@ -122,25 +124,28 @@ def generate_html_report(report_data: dict) -> str:
     # ── Phase 1 — TCO ────────────────────────────────────────────────────────
     if tco:
         tco_metrics = metric_grid([
-            ("Servers",       tco["servers"],                     None),
-            ("Storage",       f"{tco['storage_tb']} TB",          None),
-            ("Annual OpEx",   fmt(tco["annual_operational_cost"]), None),
-            ("3-Year TCO",    fmt(tco["tco_3yr"]),                 None),
-            ("5-Year TCO",    fmt(tco["tco_5yr"]),                 None),
-            ("Total CapEx",   fmt(tco["total_capex"]),             None),
+            ("Servers",          tco["servers"],                     None),
+            ("Storage",          f"{tco['storage_tb']} TB",          None),
+            ("Annual OpEx",      fmt(tco["annual_operational_cost"]), None),
+            ("3-Year TCO",       fmt(tco["tco_3yr"]),                 None),
+            ("5-Year TCO",       fmt(tco["tco_5yr"]),                 None),
+            ("Total CapEx",      fmt(tco["total_capex"]),             None),
+            ("Facilities Tax",   fmt(tco.get("annual_facilities", 0)),
+             f"{tco.get('facilities_overhead_rate', 0.12)*100:.0f}% Legacy Tax"),
         ])
         tco_table = table(
             ["Cost Component", "Annual Amount"],
             [
-                ("Server Hardware CapEx",  fmt(tco["hardware_cost"])),
-                ("Storage CapEx",          fmt(tco["storage_capex"])),
-                ("Maintenance",            fmt(tco["annual_maintenance"])),
-                ("Power & Cooling",        fmt(tco["annual_power"])),
-                ("IT Staff",               fmt(tco["annual_staff"])),
-                ("Storage OpEx",           fmt(tco["annual_storage_opex"])),
+                ("Server Hardware CapEx",   fmt(tco["hardware_cost"])),
+                ("Storage CapEx",           fmt(tco["storage_capex"])),
+                ("Maintenance",             fmt(tco["annual_maintenance"])),
+                ("Power & Cooling",         fmt(tco["annual_power"])),
+                ("IT Staff",                fmt(tco["annual_staff"])),
+                ("Storage OpEx",            fmt(tco["annual_storage_opex"])),
+                ("Facilities Overhead",     fmt(tco.get("annual_facilities", 0))),
             ]
         )
-        phase1_html = tco_metrics + "<h4>Cost Breakdown</h4>" + tco_table
+        phase1_html = tco_metrics + "<h4>Cost Breakdown (incl. Legacy Tax)</h4>" + tco_table
     else:
         phase1_html = '<p class="na">Infrastructure data not available.</p>'
 
@@ -249,15 +254,28 @@ def generate_html_report(report_data: dict) -> str:
 
     # ── Phase 4 — Rule-Based Strategy ─────────────────────────────────────────
     if strategy:
-        strat_name = strategy["strategy"]
-        dr         = strategy["dr_plan"]
-        roadmap    = strategy["roadmap"]
-        inputs     = strategy["inputs"]
+        # Handle both old string format and new dict format
+        if isinstance(strategy, dict) and "strategy" in strategy:
+            strat_name = strategy["strategy"]
+            dr         = strategy["dr_plan"]
+            roadmap    = strategy["roadmap"]
+            inputs     = strategy["inputs"]
+            overridden = strategy.get("overridden", False)
+            debt_check = strategy.get("debt_check")
+        else:
+            # legacy format
+            strat_name = strategy if isinstance(strategy, str) else strategy.get("strategy", "Lift-and-Shift")
+            dr         = strategy.get("dr_plan", "Warm DR") if isinstance(strategy, dict) else "Warm DR"
+            roadmap    = strategy.get("roadmap", []) if isinstance(strategy, dict) else []
+            inputs     = strategy.get("inputs", {}) if isinstance(strategy, dict) else {}
+            overridden = False
+            debt_check = None
 
         strat_color = {
             "Lift-and-Shift":         "#1d4ed8",
             "Hybrid Migration":       "#c2410c",
-            "Cloud-Native Migration": "#15803d"
+            "Cloud-Native Migration": "#15803d",
+            "Retain On-Premise":      "#7e22ce",
         }.get(strat_name, "#1d4ed8")
 
         dr_color = {"Hot DR": "#dc2626", "Warm DR": "#d97706", "Cold DR": "#16a34a"}.get(dr, "#2563eb")
@@ -265,16 +283,24 @@ def generate_html_report(report_data: dict) -> str:
         inputs_table = table(
             ["Input Factor", "Selected Value"],
             [
-                ("Compliance Level",  inputs["compliance"].capitalize()),
-                ("Downtime Tolerance", inputs["downtime"].capitalize()),
-                ("Growth Rate",        inputs["growth"].capitalize()),
+                ("Compliance Level",   inputs.get("compliance", "N/A").capitalize()),
+                ("Downtime Tolerance", inputs.get("downtime",   "N/A").capitalize()),
+                ("Growth Rate",        inputs.get("growth",     "N/A").capitalize()),
             ]
         )
+
+        debt_html = ""
+        if overridden and debt_check:
+            debt_html = f"""<div style="background:#3b0000;border-left:4px solid #ef4444;
+                border-radius:0 6px 6px 0;padding:12px 16px;margin-bottom:12px;color:#fca5a5;">
+                ⛔ TECHNICAL DEBT OVERRIDE: Business rules suggested a more ambitious strategy,
+                but was overridden due to: {'; '.join(debt_check.get('blockers', []))}
+            </div>"""
 
         phase4_html = f"""
         <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
           <div style="flex:1;min-width:200px;background:#f8fafc;border-radius:8px;padding:16px;border-left:4px solid {strat_color};">
-            <div style="font-size:.8rem;color:#64748b;margin-bottom:6px;">MIGRATION STRATEGY</div>
+            <div style="font-size:.8rem;color:#64748b;margin-bottom:6px;">MIGRATION STRATEGY{'&nbsp;(OVERRIDDEN)' if overridden else ''}</div>
             <div style="font-weight:700;font-size:1.1rem;color:{strat_color};">{strat_name}</div>
           </div>
           <div style="flex:1;min-width:200px;background:#f8fafc;border-radius:8px;padding:16px;border-left:4px solid {dr_color};">
@@ -282,6 +308,7 @@ def generate_html_report(report_data: dict) -> str:
             <div style="font-weight:700;font-size:1.1rem;color:{dr_color};">🛡️ {dr}</div>
           </div>
         </div>
+        {debt_html}
         <h4>Decision Inputs</h4>
         {inputs_table}
         <h4>Migration Roadmap</h4>
@@ -290,77 +317,132 @@ def generate_html_report(report_data: dict) -> str:
     else:
         phase4_html = '<p class="na">Strategy recommendation not available. Complete Phase 4 tab.</p>'
 
-    # ── Phase 5 — ML Prediction ────────────────────────────────────────────────
+    # ── Migration Economics ────────────────────────────────────────────────────
+    if migration_econ:
+        bem = migration_econ.get("break_even_month")
+        econ_metrics = metric_grid([
+            ("Strategy",           migration_econ.get("strategy", "N/A"),           None),
+            ("Labour Multiplier",  f"{migration_econ.get('labor_multiplier','?')}×", None),
+            ("Double-Run Period",  f"{migration_econ.get('double_run_months','?')} months", None),
+            ("Labour Cost",        fmt(migration_econ.get("labor_cost", 0)),          None),
+            ("Double-Run Penalty", fmt(migration_econ.get("double_run_cost", 0)),     None),
+            ("Year-1 Total",       fmt(migration_econ.get("year1_total", 0)),         None),
+            ("Break-Even Month",   f"Month {bem}" if bem else "Never",                None),
+        ])
+        frag_price = migration_econ.get("fragility_10pct_price", "N/A")
+        frag_delay = migration_econ.get("fragility_2mo_delay",   "N/A")
+        econ_tbl   = table(
+            ["Fragility Scenario", "Impact"],
+            [
+                ("10% Cloud Price Increase", frag_price),
+                ("2-Month Migration Delay",  frag_delay),
+            ]
+        )
+        economics_section = section(
+            "Migration Economics — Year 1 Reality Check", "💸",
+            econ_metrics + "<h4>Fragility Analysis</h4>" + econ_tbl
+        )
+    else:
+        economics_section = ""
+
+    # ── Phase 5 — AI System Audit ─────────────────────────────────────────────
     if ml:
-        ml_strat  = ml["strategy"]
-        ml_conf   = ml["confidence"]
-        ml_factors = ml["top_factors"]
-        ml_path    = ml["decision_path"]
-        ml_inputs  = ml.get("inputs", {})
+        friction_risk = ml.get("friction_risk", "N/A")
+        friction_narr = ml.get("friction_narrative", "No friction analysis available.")
+        zombie_count  = ml.get("zombie_count", 0)
+        waste_pct     = ml.get("waste_pct",   0)
+        warnings_list = ml.get("warnings", [])
 
-        ml_color = {
-            "Hybrid":         "#c2410c",
-            "Cloud-Native":   "#15803d",
-            "Lift-and-Shift": "#1d4ed8"
-        }.get(ml_strat, "#2563eb")
+        risk_color_map = {"Low": "#16a34a", "Medium": "#d97706", "High": "#dc2626", "Critical": "#991b1b"}
+        rc = risk_color_map.get(friction_risk, "#2563eb")
 
-        factors_html = "".join(
-            f'<div class="factor-item"><span class="factor-rank">#{i}</span>{f}</div>'
-            for i, f in enumerate(ml_factors, 1)
-        )
-
-        path_html = "".join(
-            f'<div class="path-rule">→ {rule}</div>'
-            for rule in ml_path
-        )
-
-        inputs_table = table(
-            ["Feature", "Value"],
-            [(k.replace("_", " ").title(), str(v)) for k, v in ml_inputs.items()]
-        ) if ml_inputs else ""
+        warnings_html = "".join(
+            f'<div style="padding:6px 10px;background:#fff7ed;border-left:3px solid #d97706;'
+            f'border-radius:0 4px 4px 0;margin:4px 0;font-size:.85rem;">⚠ {w}</div>'
+            for w in warnings_list
+        ) if warnings_list else "<p>No specific warnings generated.</p>"
 
         phase5_html = f"""
         <div style="background:#f8fafc;border-radius:8px;padding:20px;
-                    border-left:4px solid {ml_color};margin-bottom:20px;text-align:center;">
-          <div style="font-size:.8rem;color:#64748b;margin-bottom:8px;">ML PREDICTED STRATEGY</div>
-          <div style="font-size:1.4rem;font-weight:700;color:{ml_color};">{ml_strat}</div>
-          <div style="color:#475569;margin-top:6px;">Confidence: <strong>{ml_conf}</strong></div>
+                    border-left:4px solid {rc};margin-bottom:20px;">
+          <div style="font-size:.8rem;color:#64748b;margin-bottom:8px;">AI RISK ASSESSMENT</div>
+          <div style="font-size:1.2rem;font-weight:700;color:{rc};">Risk Level: {friction_risk}</div>
+          <div style="color:#475569;margin-top:8px;font-size:.88rem;white-space:pre-line;">{friction_narr}</div>
         </div>
-
-        {"<h4>Input Features Used</h4>" + inputs_table if inputs_table else ""}
-
-        <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:16px;">
-          <div style="flex:1;min-width:240px;">
-            <h4>Top Influencing Factors (Global XAI)</h4>
-            <div class="factors-list">{factors_html}</div>
-          </div>
-          <div style="flex:1;min-width:240px;">
-            <h4>Decision Path (Local XAI)</h4>
-            <div class="path-list">{path_html}</div>
-          </div>
-        </div>
+        {metric_grid([
+            ('Zombie Servers Found', str(zombie_count), None),
+            ('Wasted Capacity',      f'{waste_pct}%',   None),
+        ])}
+        <h4>Specific Warnings</h4>
+        {warnings_html}
         """
     else:
-        phase5_html = '<p class="na">ML prediction not available. Complete Phase 5 tab.</p>'
+        phase5_html = '<p class="na">AI System Audit not available. Complete Phase 5 tab.</p>'
 
     # ── Executive Summary ──────────────────────────────────────────────────────
     exec_rows = []
     if tco:
-        exec_rows.append(("On-Prem 5-Year TCO", fmt(tco["tco_5yr"]), "Baseline cost"))
+        exec_rows.append(("On-Prem 5-Year TCO",   fmt(tco["tco_5yr"]),                "Baseline cost"))
+        exec_rows.append(("Annual Facilities Tax", fmt(tco.get("annual_facilities", 0)), "Legacy overhead"))
     if tco and cloud:
         bp       = cloud["best_provider"]
         cy       = cloud["costs"][bp]["selected"]
         c5yr     = cy * 5
         onp5yr   = tco["tco_5yr"]
         sav      = onp5yr - c5yr
-        exec_rows.append(("Cloud 5-Year Cost",    fmt(c5yr),  f"Best: {bp}"))
-        exec_rows.append(("Projected 5-Year Saving", fmt(sav), f"{(sav/onp5yr*100):.1f}%"))
+        egress_r = cloud.get("egress_rate", 0.065)
+        mgmt_r   = cloud.get("managed_services_premium", 0.20)
+        exec_rows.append(("Cloud 5-Year Cost",         fmt(c5yr),  f"Best: {bp}"))
+        exec_rows.append(("Projected 5-Year Saving",   fmt(sav),   f"{(sav/onp5yr*100):.1f}%"))
+        exec_rows.append(("Egress & IOPS Fee",         f"{egress_r*100:.1f}%", "Applied to cloud base"))
+        exec_rows.append(("Managed Services Premium",  f"{mgmt_r*100:.0f}%",   "Applied to cloud base"))
+    if migration_econ:
+        exec_rows.append(("Year 1 Migration Cost", fmt(migration_econ.get("year1_total", 0)), "Incl. labor + double-run"))
+        bem = migration_econ.get("break_even_month")
+        exec_rows.append(("Break-Even Month", f"Month {bem}" if bem else "Never", "When savings exceed outlay"))
     if risk and tco and cloud:
         exec_rows.append(("Risk-Adjusted Annual Cloud", fmt(risk["adj_cloud_cost"]), "Includes all risk costs"))
     if strategy:
-        exec_rows.append(("Recommended Strategy", strategy["strategy"], "Rule engine"))
+        strat_name = strategy["strategy"] if isinstance(strategy, dict) else strategy
+        exec_rows.append(("Recommended Strategy",  strat_name, "Rule engine + Tech Debt Check"))
     if ml:
-        exec_rows.append(("ML Predicted Strategy", ml["strategy"], f"Confidence: {ml['confidence']}"))
+        exec_rows.append(("AI Risk Level",  ml.get("friction_risk", "N/A"), "System Auditor verdict"))
+
+    exec_table = table(["Metric", "Value", "Notes"], exec_rows) if exec_rows else \
+        '<p class="na">Complete all phases to populate the executive summary.</p>'
+
+
+
+
+
+    # ── Executive Summary ──────────────────────────────────────────────────────
+    exec_rows = []
+    if tco:
+        exec_rows.append(("On-Prem 5-Year TCO",   fmt(tco["tco_5yr"]),                "Baseline cost"))
+        exec_rows.append(("Annual Facilities Tax", fmt(tco.get("annual_facilities", 0)), "Legacy overhead"))
+    if tco and cloud:
+        bp       = cloud["best_provider"]
+        cy       = cloud["costs"][bp]["selected"]
+        c5yr     = cy * 5
+        onp5yr   = tco["tco_5yr"]
+        sav      = onp5yr - c5yr
+        egress_r = cloud.get("egress_rate", 0.065)
+        mgmt_r   = cloud.get("managed_services_premium", 0.20)
+        exec_rows.append(("Cloud 5-Year Cost",         fmt(c5yr),  f"Best: {bp}"))
+        exec_rows.append(("Projected 5-Year Saving",   fmt(sav),   f"{(sav/onp5yr*100):.1f}%"))
+        exec_rows.append(("Egress & IOPS Fee",         f"{egress_r*100:.1f}%", "Applied to cloud base"))
+        exec_rows.append(("Managed Services Premium",  f"{mgmt_r*100:.0f}%",   "Applied to cloud base"))
+    if migration_econ:
+        exec_rows.append(("Year 1 Migration Cost",   fmt(migration_econ.get("year1_total", 0)),   "Incl. labor + double-run"))
+        bem = migration_econ.get("break_even_month")
+        exec_rows.append(("Break-Even Month", f"Month {bem}" if bem else "Never", "When savings exceed outlay"))
+    if risk and tco and cloud:
+        exec_rows.append(("Risk-Adjusted Annual Cloud", fmt(risk["adj_cloud_cost"]), "Includes all risk costs"))
+    if strategy:
+        strat_name = strategy["strategy"] if isinstance(strategy, dict) else strategy
+        exec_rows.append(("Recommended Strategy",  strat_name, "Rule engine + Tech Debt Check"))
+    if ml:
+        exec_rows.append(("AI Risk Level",  ml.get("friction_risk", "N/A"), "System Auditor verdict"))
 
     exec_table = table(["Metric", "Value", "Notes"], exec_rows) if exec_rows else \
         '<p class="na">Complete all phases to populate the executive summary.</p>'
@@ -574,11 +656,12 @@ def generate_html_report(report_data: dict) -> str:
     {exec_table}
   </div>
 
-  {section("Phase 1 — On-Premise TCO", "📦", phase1_html)}
+  {section("Phase 1 — On-Premise TCO (incl. Legacy Tax)", "📦", phase1_html)}
   {section("Phase 2 — Cost Analysis &amp; Cloud Comparison", "💰", phase2_html)}
   {section("Phase 3 — Risk-Adjusted Analysis", "⚠️", phase3_html)}
   {section("Phase 4 — Rule-Based Strategy Recommendation", "🧭", phase4_html)}
-  {section("Phase 5 — Machine Learning Prediction", "🤖", phase5_html)}
+  {economics_section}
+  {section("Phase 5 — AI System Audit", "🤖", phase5_html)}
 
   <div class="report-footer">
     Cloud Migration Decision Support System &nbsp;·&nbsp;
@@ -723,24 +806,20 @@ def generate_csv_export(report_data: dict) -> str:
         writer.writerow(["N/A", ""])
     writer.writerow([])
 
-    # Phase 5
-    writer.writerow(["=== PHASE 5: ML PREDICTION ==="])
+    # Phase 5 — AI System Audit
+    writer.writerow(["=== PHASE 5: AI SYSTEM AUDIT ==="])
     writer.writerow(["Metric", "Value"])
     if ml:
-        writer.writerow(["ML Strategy",  ml["strategy"]])
-        writer.writerow(["Confidence",   ml["confidence"]])
+        writer.writerow(["Risk Level",          ml.get("friction_risk", "N/A")])
+        writer.writerow(["Zombie Servers Found", ml.get("zombie_count", 0)])
+        writer.writerow(["Wasted Capacity (%)",  ml.get("waste_pct", 0)])
         writer.writerow([])
-        writer.writerow(["Input Feature", "Value"])
-        for k, v in ml.get("inputs", {}).items():
-            writer.writerow([k.replace("_", " ").title(), v])
+        writer.writerow(["Friction Narrative"])
+        writer.writerow([ml.get("friction_narrative", "")])
         writer.writerow([])
-        writer.writerow(["Top Factor Rank", "Feature"])
-        for i, f in enumerate(ml["top_factors"], 1):
-            writer.writerow([f"#{i}", f])
-        writer.writerow([])
-        writer.writerow(["Decision Path Rule"])
-        for rule in ml["decision_path"]:
-            writer.writerow([rule])
+        writer.writerow(["Warning"])
+        for w in ml.get("warnings", []):
+            writer.writerow([w])
     else:
         writer.writerow(["N/A", ""])
 

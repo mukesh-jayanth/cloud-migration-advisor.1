@@ -17,12 +17,14 @@ logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(name)s - %(le
 # ── Path setup ────────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.dirname(__file__))
 
-from engines.cost_engine import calculate_onprem_tco, calculate_manual_tco
+from engines.cost_engine import calculate_onprem_tco, calculate_manual_tco, MIGRATION_ECONOMICS
 from engines.cloud_cost_engine import run_cloud_analysis
 from engines.risk_engine import calculate_risk_adjustment, risk_adjusted_tco
-from engines.rule_engine import recommend_strategy, recommend_dr, get_migration_roadmap
-from engines.decision_engine import recommend_strategy as financial_recommend
-from ml.predict_strategy import predict_strategy
+from engines.rule_engine import recommend_strategy, recommend_dr, get_migration_roadmap, check_technical_debt
+from engines.decision_engine import recommend_strategy as financial_recommend, calculate_roi_timeline
+from ml.zombie_detector import detect_zombie_servers
+from ml.risk_nlp import analyze_migration_concerns
+from ml.predict_strategy import run_system_audit, generate_friction_report, calculate_failure_probability
 from report_generator import generate_html_report, generate_csv_export
 
 
@@ -171,7 +173,8 @@ st.markdown("""
 # ── Session state init ────────────────────────────────────────────────────────
 for key in ["tco_result", "cloud_analysis", "servers", "storage_tb",
             "cpu_util", "ram_util", "pricing_model",
-            "report_risk", "report_strategy", "report_ml"]:
+            "report_risk", "report_strategy", "report_ml",
+            "report_migration_econ", "report_audit"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
@@ -558,6 +561,70 @@ with tab1:
                 </div>
                 """, unsafe_allow_html=True)
 
+                # ── Zombie Server / Inventory Integrity Check ────────────
+                st.markdown("---")
+                st.markdown("#### 🧟 Inventory Integrity Check")
+                st.caption("AI scans your infrastructure for over-provisioned 'zombie' servers before cloud pricing begins.")
+
+                # Build server list from session data
+                zombie_server_list = [{
+                    "name":         f"server-pool",
+                    "ram_gb":       float(st.session_state.get("ram_input", 32)),
+                    "vcpu":         int(st.session_state.get("vcpu_input", 8)),
+                    "cpu_util_pct": float(cpu_util),
+                    "ram_util_pct": float(ram_util),
+                }]
+                zombie_result = detect_zombie_servers(zombie_server_list)
+                integrity = zombie_result["inventory_integrity"]
+
+                if integrity == "CLEAN":
+                    st.markdown("""
+                    <div style="background:#052e16;border:1px solid #22c55e;
+                                border-left:4px solid #22c55e;border-radius:8px;
+                                padding:12px 18px;color:#86efac;font-size:.88rem;">
+                      ✅ <b>Inventory Integrity: CLEAN</b> — No zombie servers detected.
+                      Resource allocation is healthy for cloud migration.
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    sev_color = "#ef4444" if integrity == "CRITICAL" else "#f59e0b"
+                    sev_icon  = "🚨" if integrity == "CRITICAL" else "⚠️"
+                    st.markdown(f"""
+                    <div style="background:#1a0a0a;border:1px solid {sev_color};
+                                border-left:4px solid {sev_color};border-radius:8px;
+                                padding:14px 18px;margin-bottom:12px;">
+                      <div style="color:{sev_color};font-weight:700;margin-bottom:6px;">
+                        {sev_icon} INVENTORY INTEGRITY: {integrity}
+                      </div>
+                      <div style="color:#fca5a5;font-size:.9rem;">
+                        {zombie_result['waste_summary']}
+                      </div>
+                      <div style="color:#fde68a;font-size:.82rem;margin-top:8px;">
+                        💡 Right-size or decommission flagged servers BEFORE
+                        proceeding to cloud pricing — migrating waste locks in
+                        inflated cloud bills.
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    for z in zombie_result["zombies"]:
+                        sev_c = {"Critical": "#ef4444", "High": "#f59e0b",
+                                 "Medium": "#60a5fa", "Low": "#22c55e"}.get(z["severity"], "#60a5fa")
+                        st.markdown(f"""
+                        <div style="background:#1e293b;border-left:4px solid {sev_c};
+                                    border-radius:0 8px 8px 0;padding:10px 14px;margin:4px 0;">
+                          <span style="color:#f1f5f9;font-weight:600;">🧟 {z['name']}</span>
+                          <span style="color:{sev_c};font-size:.8rem;font-weight:700;float:right;">{z['severity'].upper()}</span>
+                          <div style="color:#94a3b8;font-size:.83rem;margin-top:3px;">
+                            {z['ram_gb']} GB RAM · {z['vcpu']} vCPU · CPU @ {z['cpu_util_pct']}%
+                          </div>
+                          <div style="color:#fde68a;font-size:.8rem;margin-top:4px;">
+                            💡 {z['recommendation']}
+                          </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                st.session_state["report_audit"] = zombie_result
+
         else:
             st.markdown("""
             <div class="info-box" style="margin-top:40px;text-align:center;">
@@ -708,7 +775,8 @@ with tab2:
             financial_decision = financial_recommend(
                 onprem_cost=onprem_annual,
                 cloud_costs=analysis["costs"],
-                pricing_model=pricing_model
+                pricing_model=pricing_model,
+                servers=result.get("servers", 1)
             )
             summary = financial_decision.get("_summary", {})
 
@@ -718,21 +786,21 @@ with tab2:
                 cols[0].metric("Best Provider",  summary.get("best_cloud_option", "N/A"))
                 cols[1].metric("Annual Savings", inr(summary.get("best_savings", 0)))
                 cols[2].metric("Confidence",     summary.get("confidence", "N/A"))
-                st.info(f"💡 **Strategy:** {summary.get('strategy', 'N/A')} — {summary.get('reason', '')}")
+                st.info(f"💡 {summary.get('reason', '')}")
             else:
                 st.warning("⚠️ **Recommendation: Stay On-Prem** — No cloud provider offers sufficient savings.")
 
             with st.expander("📊 Full Per-Provider Decision Breakdown"):
                 for prov, data in financial_decision.items():
-                    if prov == "_summary":
+                    if prov.startswith("_"):
                         continue
                     st.markdown(
                         f"**{prov}** — {data['recommendation']} | "
                         f"Savings: {inr(data['savings'])} ({data['savings_pct']:.1f}%) | "
-                        f"Confidence: {data['confidence']} | Strategy: {data['strategy']}"
+                        f"Confidence: {data['confidence']}"
                     )
         except Exception as e:
-            st.warning("⚠️ **Decision Engine Error:** Could not calculate the financial recommendation. Please ensure cloud analysis ran successfully.")
+            st.warning(f"⚠️ **Decision Engine Error:** {e}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -768,6 +836,75 @@ with tab3:
             skill_risk    = st.slider("Skill Gap Probability", 0.0, 1.0, 0.20, 0.01)
             training_cost = st.number_input("Training Cost (₹)", value=20000, step=2000)
 
+            # ── NLP Fear Classifier ──────────────────────────────────
+            st.markdown("---")
+            st.markdown("#### 📝 Describe Your Migration Concerns")
+            st.caption(
+                "Type your biggest fears about this migration. "
+                "The AI will classify them into risk categories and adjust "
+                "your probability sliders automatically."
+            )
+            fear_text = st.text_area(
+                "Migration Concerns (free text)",
+                placeholder=(
+                    "e.g. I'm worried about data breaches and our team has no "
+                    "Kubernetes experience. The budget is tight and we can't "
+                    "afford delays..."
+                ),
+                height=120,
+                key="nlp_fear_text",
+                label_visibility="collapsed",
+            )
+
+            # Analyze NLP concerns
+            nlp_result = None
+            nlp_penalty = 0.0
+            if fear_text and fear_text.strip():
+                best_provider_t3 = analysis["best_provider"]
+                cloud_yearly_t3  = analysis["costs"][best_provider_t3]["selected"]
+                nlp_result = analyze_migration_concerns(fear_text, cloud_annual=cloud_yearly_t3)
+
+                if nlp_result["detected_categories"]:
+                    nlp_penalty = nlp_result["total_penalty"]
+                    adj = nlp_result["probability_adjustments"]
+
+                    # Show detected categories
+                    for cat in nlp_result["detected_categories"]:
+                        sev_colors = {"Low": "#22c55e", "Medium": "#f59e0b",
+                                      "High": "#ef4444", "Critical": "#991b1b"}
+                        sc = sev_colors.get(cat["severity"], "#60a5fa")
+                        st.markdown(f"""
+                        <div style="background:#1e293b;border-left:4px solid {sc};
+                                    border-radius:0 8px 8px 0;padding:10px 14px;margin:4px 0;">
+                          <span style="color:#f1f5f9;font-weight:600;">{cat['icon']} {cat['label']}</span>
+                          <span style="color:{sc};font-size:.8rem;font-weight:700;float:right;">
+                            {cat['severity']} · +{cat['prob_adjustment']:.0%}
+                          </span>
+                          <div style="color:#94a3b8;font-size:.82rem;margin-top:4px;">
+                            Matched: {', '.join(cat['matched_keywords'])}
+                          </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    # Apply NLP adjustments to sliders
+                    downtime_risk    = min(1.0, downtime_risk    + adj.get("downtime_risk", 0.0))
+                    compliance_risk  = min(1.0, compliance_risk  + adj.get("compliance_risk", 0.0))
+                    skill_risk       = min(1.0, skill_risk       + adj.get("skill_risk", 0.0))
+
+                    st.markdown(f"""
+                    <div class="info-box">
+                      📊 <b>NLP Adjustments Applied:</b><br>
+                      Downtime → {downtime_risk:.0%} ·
+                      Compliance → {compliance_risk:.0%} ·
+                      Skill Gap → {skill_risk:.0%}<br>
+                      Financial Penalty: <b>{inr(nlp_penalty)}/yr</b> added to risk-adjusted cost.
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    st.session_state["nlp_risk_result"] = nlp_result
+                else:
+                    st.info("✅ No specific risk categories detected in your description.")
+
         with col_results:
             try:
                 risk = calculate_risk_adjustment(
@@ -780,7 +917,7 @@ with tab3:
                 cloud_yearly   = analysis["costs"][best_provider]["selected"]
                 onprem_annual  = result["annual_operational_cost"]
 
-                adj_cloud_cost = risk_adjusted_tco(cloud_yearly, risk)
+                adj_cloud_cost = risk_adjusted_tco(cloud_yearly, risk) + nlp_penalty
                 adj_savings    = onprem_annual - adj_cloud_cost
                 adj_savings_p  = (adj_savings / onprem_annual * 100) if onprem_annual else 0
 
@@ -880,11 +1017,11 @@ with tab3:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 4 — Strategy & Rules
+#  TAB 4 — Strategy & Rules (with Technical Debt Check + Migration Economics)
 # ══════════════════════════════════════════════════════════════════════════════
 with tab4:
 
-    st.markdown('<div class="section-header">🧭 Rule-Based Strategy Recommendation</div>',
+    st.markdown('<div class="section-header">🧭 Rule-Based Strategy Recommendation — The Honest Advisor</div>',
                 unsafe_allow_html=True)
 
     col_in, col_out = st.columns([1, 1.5], gap="large")
@@ -915,12 +1052,49 @@ with tab4:
         )
 
         st.markdown("---")
+        st.markdown("#### 🔍 Technical Debt Check")
+        st.caption("Optional — fill in to detect migration blockers.")
+
+        os_input  = st.text_input("Operating System (e.g. Windows 2008 R2, Ubuntu 22)",
+                                   placeholder="e.g. Windows Server 2019",
+                                   help="Legacy OS patterns trigger a force-override to Retain / Rehost")
+        app_input = st.text_area("Application Pattern Notes",
+                                  placeholder="e.g. stateful, shared filesystem, sticky session…",
+                                  height=80,
+                                  help="Stateful or shared-disk apps may block Cloud-Native migration")
+        net_input = st.text_input("Network / IP Config Notes",
+                                   placeholder="e.g. hardcoded IP, ip whitelist…",
+                                   help="Hardcoded IP dependencies are a hard migration blocker")
+
+        st.markdown("---")
+        st.markdown("#### 👥 Team Capability")
+        has_skilled_team = st.checkbox(
+            "Highly Skilled Cloud Team",
+            help="Reduces labour multiplier by 30%. Applies to migration cost calculation."
+        )
+        has_cicd = st.checkbox(
+            "Automated CI/CD Pipelines",
+            help="Reduces labour multiplier by 20%. Applies to migration cost calculation."
+        )
+
+        st.markdown("---")
+        budget_level_sel = st.selectbox(
+            "Budget Sensitivity",
+            ["low", "medium", "high"],
+            format_func=lambda x: {"low": "Low / Cost-Sensitive",
+                                   "medium": "Moderate",
+                                   "high": "Flexible / High Budget"}[x],
+            index=1
+        )
+
         st.markdown("""
         <div class="info-box">
           <b>Rule Logic:</b><br>
           • High compliance + Low downtime → <b>Hybrid</b><br>
           • High growth → <b>Cloud-Native</b><br>
-          • Default → <b>Lift-and-Shift</b>
+          • Default → <b>Lift-and-Shift</b><br>
+          • Legacy OS / Hardcoded IPs → <b>Force Retain</b><br>
+          • Stateful apps → <b>Force Rehost</b>
         </div>
         """, unsafe_allow_html=True)
 
@@ -930,30 +1104,65 @@ with tab4:
             _downtime   = str(downtime_sel).strip().lower()
             _growth     = str(growth_sel).strip().lower()
 
-            strategy = recommend_strategy(_compliance, _downtime, _growth)
-            dr_plan  = recommend_dr(_downtime)
-            roadmap  = get_migration_roadmap(strategy)
-
-            st.session_state["report_strategy"] = {
-                "strategy": strategy,
-                "dr_plan":  dr_plan,
-                "roadmap":  roadmap,
-                "inputs": {
-                    "compliance": _compliance,
-                    "downtime":   _downtime,
-                    "growth":     _growth,
+            # Build server_info only if any field was filled
+            server_info = None
+            if os_input.strip() or app_input.strip() or net_input.strip():
+                server_info = {
+                    "os":             os_input,
+                    "app_pattern":    app_input,
+                    "network_config": net_input,
                 }
-            }
+
+            strategy_result = recommend_strategy(_compliance, _downtime, _growth,
+                                                  server_info=server_info)
+            strategy  = strategy_result["strategy"]
+            overridden = strategy_result["overridden"]
+            debt_check = strategy_result["debt_check"]
+
+            dr_plan = recommend_dr(_downtime)
+            roadmap = get_migration_roadmap(strategy)
+
+            # ── Technical Debt Banner ──────────────────────────────────
+            if debt_check and debt_check["has_debt"]:
+                severity_color = "#ef4444" if debt_check["severity"] == "hard" else "#f59e0b"
+                severity_icon  = "⛔" if debt_check["severity"] == "hard" else "⚠️"
+                st.markdown(f"""
+                <div style="background:#1a0a0a;border:1px solid {severity_color};
+                            border-left:4px solid {severity_color};border-radius:8px;
+                            padding:14px 18px;margin-bottom:16px;">
+                  <div style="color:{severity_color};font-weight:700;margin-bottom:6px;">
+                    {severity_icon} TECHNICAL DEBT OVERRIDE
+                  </div>
+                  <div style="color:#fca5a5;font-size:.9rem;">
+                    Business rules suggested: <b>{strategy_result['original_strategy']}</b><br>
+                    Overridden to: <b style="color:#f9fafb;">{strategy}</b>
+                  </div>
+                  <div style="color:#fde68a;font-size:.82rem;margin-top:8px;">
+                    {debt_check['friction_report']}
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+            elif debt_check:
+                st.markdown("""
+                <div style="background:#052e16;border:1px solid #22c55e;
+                            border-left:4px solid #22c55e;border-radius:8px;
+                            padding:12px 18px;margin-bottom:16px;color:#86efac;font-size:.88rem;">
+                  ✅ No technical debt blockers detected.
+                </div>
+                """, unsafe_allow_html=True)
 
             badge_color = {
                 "Lift-and-Shift":         "badge-blue",
                 "Hybrid Migration":       "badge-orange",
-                "Cloud-Native Migration": "badge-green"
+                "Cloud-Native Migration": "badge-green",
+                "Retain On-Premise":      "badge-purple",
             }.get(strategy, "badge-blue")
 
             st.markdown(f"""
             <div style="background:#1e293b;border-radius:12px;padding:20px;margin-bottom:16px;">
-              <div style="color:#94a3b8;font-size:.85rem;margin-bottom:8px;">RECOMMENDED STRATEGY</div>
+              <div style="color:#94a3b8;font-size:.85rem;margin-bottom:8px;">
+                RECOMMENDED STRATEGY {'(OVERRIDDEN)' if overridden else ''}
+              </div>
               <span class="{badge_color}" style="font-size:1rem;padding:8px 24px;">{strategy}</span>
             </div>
             """, unsafe_allow_html=True)
@@ -970,172 +1179,274 @@ with tab4:
             for step in roadmap:
                 st.markdown(f'<div class="roadmap-step">🔷 {step}</div>', unsafe_allow_html=True)
 
-            st.markdown("#### 💡 Why This Strategy?")
-            explanation = []
-            if _growth == "high":
-                explanation.append("High growth favours scalable cloud-native architectures")
-            if _compliance == "high":
-                explanation.append("High compliance requires hybrid or controlled environments")
-            if _downtime == "low":
-                explanation.append("Low downtime tolerance requires phased or hybrid migration")
-            if not explanation:
-                explanation.append("Balanced conditions favour standard lift-and-shift migration")
-            for point in explanation:
-                st.markdown(f"• {point}")
+            # ── Migration Economics Section ────────────────────────────
+            if st.session_state.get("tco_result") and st.session_state.get("cloud_analysis"):
+                st.markdown("---")
+                st.markdown("#### 💸 Migration Economics — Year 1 Reality Check")
 
-        except Exception as e:
-            st.error("⚠️ **Strategy Engine Error:** The rule-based engine failed to process the inputs.")
-            st.info("Please ensure all drop-downs reflect a valid choice.")
+                result   = st.session_state["tco_result"]
+                analysis = st.session_state["cloud_analysis"]
+                bp       = analysis["best_provider"]
+                onprem_annual = result["annual_operational_cost"]
+                cloud_annual  = analysis["costs"][bp]["selected"]
 
+                # Call financial decision engine with strategy + team info
+                fin_dec = financial_recommend(
+                    onprem_cost      = onprem_annual,
+                    cloud_costs      = analysis["costs"],
+                    pricing_model    = pricing_model,
+                    strategy_name    = strategy,
+                    servers          = result["servers"],
+                    has_skilled_team = has_skilled_team,
+                    has_cicd         = has_cicd,
+                )
+                econ = fin_dec.get("_migration_economics")
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  TAB 5 — ML Prediction
-# ══════════════════════════════════════════════════════════════════════════════
-with tab5:
+                if econ:
+                    e1, e2, e3 = st.columns(3)
+                    e1.metric("Labour Multiplier",  f"{econ['labor_multiplier']}×")
+                    e2.metric("Double-Run Period",   f"{econ['double_run_months']} months")
+                    e3.metric("Year 1 Total Cost",   inr(econ['year1_total']))
 
-    st.markdown('<div class="section-header">🤖 Machine Learning Strategy Prediction</div>',
-                unsafe_allow_html=True)
+                    e4, e5, e6 = st.columns(3)
+                    e4.metric("Labour Cost",         inr(econ['labor_cost']))
+                    e5.metric("Double-Run Penalty",  inr(econ['double_run_cost']))
 
-    col_feat, col_pred = st.columns([1, 1.5], gap="large")
+                    if econ["break_even_month"]:
+                        e6.metric("Break-Even Month", f"Month {econ['break_even_month']}")
+                    else:
+                        e6.metric("Break-Even", "Never — review strategy")
 
-    with col_feat:
-        st.markdown("#### Enterprise Feature Inputs")
-        st.caption("These feed directly into the trained Decision Tree model.")
+                    # Fragility warnings
+                    st.markdown("##### 📊 Fragility Analysis")
+                    frag_price = econ.get("fragility_10pct_price", "")
+                    frag_delay = econ.get("fragility_2mo_delay", "")
+                    is_fragile_price = "HIGH FRAGILITY" in frag_price or "CRITICAL" in frag_price
+                    is_fragile_delay = "HIGH FRAGILITY" in frag_delay or "CRITICAL" in frag_delay
 
-        default_servers  = st.session_state["servers"]    or 50
-        default_storage  = st.session_state["storage_tb"] or 20.0
-        default_cpu_util = st.session_state["cpu_util"]   or 60
-
-        ml_servers    = st.number_input("Number of Servers",           min_value=5,   max_value=500,   value=int(default_servers))
-        ml_cpu        = st.number_input("Average CPU Utilisation (%)", min_value=10,  max_value=90,    value=min(int(default_cpu_util), 90))
-        ml_storage    = st.number_input("Storage Size (TB)",           min_value=1.0, max_value=100.0, value=min(float(default_storage), 100.0), step=1.0)
-        ml_downtime   = st.slider("Downtime Tolerance (hrs)",  0.5, 24.0, 4.0, 0.5)
-        ml_compliance = st.select_slider("Compliance Level",   options=[1, 2, 3],
-                                         format_func=lambda x: {1:"Low",2:"Medium",3:"High"}[x], value=2)
-        ml_growth     = st.slider("Growth Rate (%)",           0, 40, 15)
-        ml_budget     = st.select_slider("Budget Flexibility", options=[1, 2, 3],
-                                         format_func=lambda x: {1:"Tight",2:"Medium",3:"Flexible"}[x], value=2)
-
-        if st.session_state["servers"]:
-            st.markdown("""
-            <div class="info-box" style="font-size:.8rem;">
-              ℹ️ Server count and storage auto-filled from Phase 1.
-            </div>
-            """, unsafe_allow_html=True)
-
-    with col_pred:
-        features = {
-            "server_count":       ml_servers,
-            "avg_cpu_util":       ml_cpu,
-            "storage_tb":         ml_storage,
-            "downtime_tolerance": ml_downtime,
-            "compliance_level":   ml_compliance,
-            "growth_rate":        ml_growth,
-            "budget_sensitivity": ml_budget
-        }
-
-        try:
-            ml_result   = predict_strategy(features)
-            strategy_ml = ml_result["strategy"]
-
-            st.session_state["report_ml"] = {**ml_result, "inputs": features}
-
-            badge_map = {
-                "Hybrid":         ("badge-orange", "🔀"),
-                "Cloud-Native":   ("badge-green",  "☁️"),
-                "Lift-and-Shift": ("badge-blue",   "🚀")
-            }
-            badge_cls, icon = badge_map.get(strategy_ml, ("badge-purple", "🤖"))
-
-            st.markdown(f"""
-            <div style="background:#1e293b;border-radius:12px;padding:24px;
-                        margin-bottom:16px;text-align:center;">
-              <div style="color:#94a3b8;font-size:.85rem;margin-bottom:12px;">ML PREDICTED STRATEGY</div>
-              <span class="{badge_cls}" style="font-size:1.2rem;padding:10px 28px;">{icon} {strategy_ml}</span>
-              <div style="color:#60a5fa;font-size:.95rem;margin-top:12px;">
-                Confidence: <b>{ml_result['confidence']}</b>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            col_xai1, col_xai2 = st.columns(2)
-
-            with col_xai1:
-                st.markdown("#### 🔍 Top Influencing Factors")
-                st.caption("Global XAI — feature importance across all predictions")
-                for i, factor in enumerate(ml_result["top_factors"], 1):
-                    pct = [40, 30, 20][i - 1] if i <= 3 else 10
+                    box_class = "warn-box" if (is_fragile_price or is_fragile_delay) else "info-box"
                     st.markdown(f"""
-                    <div style="background:#1e293b;border-radius:6px;padding:10px 14px;margin:5px 0;">
-                      <span style="color:#e2e8f0;">#{i} {factor}</span>
-                      <div style="background:#334155;border-radius:4px;height:6px;margin-top:6px;">
-                        <div style="background:#2563eb;height:6px;border-radius:4px;width:{pct}%;"></div>
-                      </div>
+                    <div class="{box_class}">
+                      <b>📈 10% Cloud Price Increase:</b> {frag_price}<br><br>
+                      <b>⏱️ 2-Month Migration Delay:</b> {frag_delay}
                     </div>
                     """, unsafe_allow_html=True)
 
-            with col_xai2:
-                st.markdown("#### 🛣️ Decision Path")
-                st.caption("Local XAI — exact rules used for this prediction")
-                for rule in ml_result["decision_path"]:
-                    st.markdown(f'<div class="rule-step">→ {rule}</div>',
-                                unsafe_allow_html=True)
+                    if has_skilled_team or has_cicd:
+                        discounts = []
+                        if has_skilled_team: discounts.append("Skilled Team (−30%)")
+                        if has_cicd:         discounts.append("CI/CD Automation (−20%)")
+                        st.success(f"✅ Team discounts applied: {', '.join(discounts)}")
 
-            st.markdown("---")
-            st.markdown("#### 📈 Model Performance")
+                    st.session_state["report_migration_econ"] = econ
+                else:
+                    st.info("Migration economics unavailable — run cloud analysis in Tab 1 first.")
 
-            perf_col1, perf_col2 = st.columns(2)
-
-            with perf_col1:
-                st.markdown("**Confusion Matrix**")
-                try:
-                    cm_path = os.path.join(os.path.dirname(__file__), "models", "confusion_matrix.png")
-                    st.image(Image.open(cm_path), width="stretch")
-                except:
-                    st.info("confusion_matrix.png not found in models/")
-
-            with perf_col2:
-                st.markdown("**Decision Tree Visualisation**")
-                try:
-                    dt_path = os.path.join(os.path.dirname(__file__), "models", "decision_tree_visual.png")
-                    st.image(Image.open(dt_path), width="stretch", caption="Trained Decision Tree (max_depth=5)")
-                except:
-                    st.info("decision_tree_visual.png not found in models/")
-
-            st.markdown("#### Feature Importance (Global)")
-            try:
-                import joblib as jl
-                dt_model_path = os.path.join(os.path.dirname(__file__), "models", "decision_tree.pkl")
-                model_loaded = jl.load(dt_model_path)
-                feat_names   = ["server_count","avg_cpu_util","storage_tb",
-                                "downtime_tolerance","compliance_level",
-                                "growth_rate","budget_sensitivity"]
-                feat_labels  = ["Servers","CPU Util","Storage","Downtime Tol.",
-                                "Compliance","Growth Rate","Budget Flex."]
-                fi_df = pd.DataFrame({
-                    "Feature":    feat_labels,
-                    "Importance": model_loaded.feature_importances_
-                }).sort_values("Importance", ascending=True)
-
-                fig_fi = px.bar(
-                    fi_df, x="Importance", y="Feature", orientation="h",
-                    color="Importance",
-                    color_continuous_scale=["#1e293b", "#2563eb", "#60a5fa"],
-                    title="Decision Tree Feature Importances"
-                )
-                fig_fi.update_layout(
-                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,0.8)",
-                    font_color="#e2e8f0", margin=dict(t=40, b=10, l=10, r=10),
-                    coloraxis_showscale=False,
-                    yaxis=dict(gridcolor="#334155"), xaxis=dict(gridcolor="#334155")
-                )
-                st.plotly_chart(fig_fi, width="stretch")
-            except Exception as e:
-                st.warning(f"Could not load feature importances: {e}")
+            # Save strategy to report state
+            st.session_state["report_strategy"] = {
+                "strategy":   strategy,
+                "overridden": overridden,
+                "debt_check": debt_check,
+                "dr_plan":    dr_plan,
+                "roadmap":    roadmap,
+                "inputs": {
+                    "compliance": _compliance,
+                    "downtime":   _downtime,
+                    "growth":     _growth,
+                }
+            }
 
         except Exception as e:
-            st.error("⚠️ **Machine Learning Engine Error:** The prediction could not be generated.")
-            st.info("Make sure you have valid numeric inputs and that the required model files are present in the models/ directory.")
+            st.error("⚠️ **Strategy Engine Error:** The rule-based engine failed to process the inputs.")
+            st.info(f"Details: {e}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TAB 5 — AI System Auditor (Friction & Failure Predictor)
+# ══════════════════════════════════════════════════════════════════════════════
+with tab5:
+
+    st.markdown('<div class="section-header">🤖 AI System Auditor — Friction & Failure Predictor</div>',
+                unsafe_allow_html=True)
+    st.markdown("""
+    <div class="info-box">
+      The AI evaluates the <b>risk of your chosen strategy</b> — not what strategy to pick
+      (the Rule Engine already does that). It identifies <i>friction points</i>, <i>deadlocks</i>,
+      and estimates the <b>probability of project failure</b>, giving you an honest executive
+      verdict before you commit.
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.session_state.get("tco_result") and st.session_state.get("cloud_analysis"):
+        result_fr    = st.session_state["tco_result"]
+        analysis_fr  = st.session_state["cloud_analysis"]
+        strategy_fr  = (st.session_state.get("report_strategy") or {}).get("strategy", "Lift-and-Shift")
+        bp_fr        = analysis_fr["best_provider"]
+        onprem_fr    = result_fr["annual_operational_cost"]
+        cloud_fr     = analysis_fr["costs"][bp_fr]["selected"]
+        econ_fr      = st.session_state.get("report_migration_econ")
+        mig_premium  = econ_fr["migration_premium"] if econ_fr else None
+        zombie_data  = st.session_state.get("report_audit")
+        zombie_count = zombie_data.get("zombie_count", 0) if zombie_data else 0
+        nlp_data     = st.session_state.get("nlp_risk_result")
+        nlp_score    = nlp_data.get("risk_score", 0) if nlp_data else 0
+
+        # Strategy context banner
+        st.markdown(f"""
+        <div style="background:#1e293b;border-radius:10px;padding:16px 20px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="color:#94a3b8;font-size:.8rem;">Evaluating Strategy</span><br>
+              <span style="color:#e2e8f0;font-size:1.1rem;font-weight:700;">{strategy_fr}</span>
+            </div>
+            <div style="text-align:right;">
+              <span style="color:#94a3b8;font-size:.8rem;">Best Provider</span><br>
+              <span style="color:#60a5fa;font-size:1.1rem;font-weight:700;">{bp_fr}</span>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        budget_fr_sel = st.selectbox(
+            "Budget Level for Analysis",
+            ["low", "medium", "high"],
+            format_func=lambda x: {"low": "Low / Cost-Sensitive",
+                                   "medium": "Moderate",
+                                   "high": "Flexible / High Budget"}[x],
+            index=1,
+            key="audit_budget"
+        )
+
+        # ── Failure Probability ──────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("#### 🎯 Failure Probability Assessment")
+
+        annual_saving = onprem_fr - cloud_fr
+
+        failure = calculate_failure_probability(
+            strategy          = strategy_fr,
+            budget_level      = budget_fr_sel,
+            servers           = result_fr["servers"],
+            migration_premium = mig_premium,
+            annual_saving     = annual_saving,
+            has_skilled_team  = False,
+            has_cicd          = False,
+            zombie_count      = zombie_count,
+            nlp_risk_score    = nlp_score,
+        )
+
+        prob_pct = failure["final_probability"] * 100
+        tier     = failure["risk_tier"]
+        tier_colors = {"Low": "#22c55e", "Medium": "#f59e0b",
+                       "High": "#ef4444", "Critical": "#991b1b"}
+        tc = tier_colors.get(tier, "#60a5fa")
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Failure Probability", f"{prob_pct:.0f}%")
+        m2.metric("Risk Tier", tier)
+        m3.metric("Risk Factors", f"{len(failure['adjustments'])}")
+
+        # Executive verdict
+        st.markdown(f"""
+        <div style="background:#0f172a;border:2px solid {tc};
+                    border-radius:12px;padding:20px 24px;margin:12px 0;">
+          <div style="color:{tc};font-size:.9rem;font-weight:700;margin-bottom:8px;">
+            EXECUTIVE VERDICT
+          </div>
+          <div style="color:#e2e8f0;font-size:.92rem;line-height:1.6;">
+            {failure['verdict']}
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Risk factor decomposition
+        if failure["adjustments"]:
+            st.markdown("##### 📊 Risk Factor Decomposition")
+            for adj in failure["adjustments"]:
+                is_positive = adj["adjustment"].startswith("-")
+                adj_color = "#22c55e" if is_positive else "#ef4444"
+                adj_icon  = "↘" if is_positive else "↗"
+                st.markdown(f"""
+                <div style="background:#1e293b;border-left:4px solid {adj_color};
+                            border-radius:0 8px 8px 0;padding:12px 16px;margin:6px 0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="color:#f1f5f9;font-weight:600;">{adj['factor']}</span>
+                    <span style="color:{adj_color};font-size:.9rem;font-weight:700;">
+                      {adj_icon} {adj['adjustment']}
+                    </span>
+                  </div>
+                  <div style="color:#94a3b8;font-size:.83rem;margin-top:4px;">
+                    {adj['reason']}
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # Probability bar
+        bar_pct = min(100, prob_pct)
+        st.markdown(f"""
+        <div style="margin:16px 0;">
+          <div style="display:flex;justify-content:space-between;color:#94a3b8;font-size:.8rem;margin-bottom:4px;">
+            <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+          </div>
+          <div style="background:#334155;border-radius:8px;height:24px;overflow:hidden;position:relative;">
+            <div style="background:linear-gradient(90deg, #22c55e, #f59e0b, #ef4444);
+                        width:{bar_pct}%;height:100%;border-radius:8px;
+                        transition:width 0.5s ease;"></div>
+            <span style="position:absolute;right:8px;top:3px;color:#fff;font-weight:700;font-size:.8rem;">
+              {prob_pct:.0f}%
+            </span>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Friction Report ──────────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("#### ⚡ Friction Report — Strategy × Budget Reality Check")
+
+        zombie_for_friction = st.session_state.get("report_audit")
+
+        friction = generate_friction_report(
+            strategy          = strategy_fr,
+            budget_level      = budget_fr_sel,
+            cloud_annual      = cloud_fr,
+            onprem_annual     = onprem_fr,
+            servers           = result_fr["servers"],
+            migration_premium = mig_premium,
+            zombie_report     = zombie_for_friction,
+        )
+
+        risk_colors_fr = {"Low": "#22c55e", "Medium": "#f59e0b",
+                          "High": "#ef4444", "Critical": "#991b1b"}
+        risk_color_fr = risk_colors_fr.get(friction["risk_level"], "#60a5fa")
+
+        st.markdown(f"""
+        <div style="background:#1e293b;border-left:4px solid {risk_color_fr};
+                    border-radius:0 12px 12px 0;padding:20px 24px;margin-bottom:16px;">
+          <div style="color:{risk_color_fr};font-size:1rem;font-weight:700;margin-bottom:8px;">
+            Friction Level: {friction['risk_level']}
+          </div>
+          <div style="color:#e2e8f0;font-size:.9rem;white-space:pre-line;">{friction['narrative']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if friction["recommendations"]:
+            st.markdown("**Mitigations:**")
+            for rec in friction["recommendations"]:
+                st.markdown(f"→ {rec}")
+
+        # Save for report
+        st.session_state["report_ml"] = {
+            "friction_risk":       friction["risk_level"],
+            "friction_narrative":  friction["narrative"],
+            "warnings":            friction["warnings"],
+            "failure_probability": failure["final_probability"],
+            "failure_tier":        failure["risk_tier"],
+            "failure_verdict":     failure["verdict"],
+            "zombie_count":        zombie_count,
+            "waste_pct":           (zombie_for_friction or {}).get("potential_savings_pct", 0),
+        }
+    else:
+        st.info("Complete Phase 1 (Tab 1) and run Cloud Analysis first to enable the AI System Auditor.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1149,13 +1460,15 @@ with tab6:
     org_name = st.session_state.get("org_name", "My Organisation")
 
     report_data = {
-        "org_name":      org_name,
-        "pricing_model": st.session_state["pricing_model"] or "on_demand",
-        "tco":           st.session_state["tco_result"],
-        "cloud":         st.session_state["cloud_analysis"],
-        "risk":          st.session_state["report_risk"],
-        "strategy":      st.session_state["report_strategy"],
-        "ml":            st.session_state["report_ml"],
+        "org_name":          org_name,
+        "pricing_model":     st.session_state["pricing_model"] or "on_demand",
+        "tco":               st.session_state["tco_result"],
+        "cloud":             st.session_state["cloud_analysis"],
+        "risk":              st.session_state["report_risk"],
+        "strategy":          st.session_state["report_strategy"],
+        "ml":                st.session_state["report_ml"],
+        "migration_econ":    st.session_state["report_migration_econ"],
+        "audit":             st.session_state["report_audit"],
     }
 
     phases_done = sum(
@@ -1170,11 +1483,11 @@ with tab6:
     with col_status:
         st.markdown("#### 📋 Report Contents")
         phase_checks = [
-            ("📦 Phase 1 — On-Premise TCO",  report_data["tco"]),
-            ("💰 Phase 2 — Cost Analysis",    report_data["cloud"]),
-            ("⚠️  Phase 3 — Risk Analysis",   report_data["risk"]),
-            ("🧭 Phase 4 — Rule Strategy",    report_data["strategy"]),
-            ("🤖 Phase 5 — ML Prediction",    report_data["ml"]),
+            ("📦 Phase 1 — On-Premise TCO",       report_data["tco"]),
+            ("💰 Phase 2 — Cost Analysis",         report_data["cloud"]),
+            ("⚠️  Phase 3 — Risk Analysis",        report_data["risk"]),
+            ("🧭 Phase 4 — Strategy + Economics",  report_data["strategy"]),
+            ("🤖 Phase 5 — AI System Audit",       report_data["ml"]),
         ]
         for label, data in phase_checks:
             tick  = "✅" if data else "⬜"
