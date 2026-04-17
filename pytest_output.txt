@@ -1,0 +1,228 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\Mukesh Jayanth\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Mukesh Jayanth\Desktop\Internship web - up
+collecting ... collected 138 items
+
+tests/test_phase6.py::TestCostEngine::test_hardware_cost_manual PASSED   [  0%]
+tests/test_phase6.py::TestCostEngine::test_storage_capex_manual PASSED   [  1%]
+tests/test_phase6.py::TestCostEngine::test_maintenance_manual PASSED     [  2%]
+tests/test_phase6.py::TestCostEngine::test_power_manual PASSED           [  2%]
+tests/test_phase6.py::TestCostEngine::test_staff_cost_one_admin_boundary PASSED [  3%]
+tests/test_phase6.py::TestCostEngine::test_staff_cost_two_admins PASSED  [  4%]
+tests/test_phase6.py::TestCostEngine::test_storage_opex_manual PASSED    [  5%]
+tests/test_phase6.py::TestCostEngine::test_tco_3yr_formula FAILED        [  5%]
+tests/test_phase6.py::TestCostEngine::test_tco_5yr_greater_than_3yr PASSED [  6%]
+tests/test_phase6.py::TestCostEngine::test_all_result_keys_present PASSED [  7%]
+tests/test_phase6.py::TestCostEngine::test_all_values_non_negative PASSED [  7%]
+tests/test_phase6.py::TestCostEngine::test_doubling_servers_doubles_hardware_cost PASSED [  8%]
+tests/test_phase6.py::TestCostEngine::test_doubling_servers_increases_tco PASSED [  9%]
+tests/test_phase6.py::TestCostEngine::test_zero_storage_allowed PASSED   [ 10%]
+tests/test_phase6.py::TestCostEngine::test_single_server PASSED          [ 10%]
+tests/test_phase6.py::TestCostEngine::test_large_enterprise PASSED       [ 11%]
+tests/test_phase6.py::TestCostEngine::test_very_large_storage PASSED     [ 12%]
+tests/test_phase6.py::TestCostEngine::test_zero_servers_raises PASSED    [ 13%]
+tests/test_phase6.py::TestCostEngine::test_negative_servers_raises PASSED [ 13%]
+tests/test_phase6.py::TestCostEngine::test_negative_storage_raises PASSED [ 14%]
+tests/test_phase6.py::TestCostEngine::test_all_presets_return_valid_results PASSED [ 15%]
+tests/test_phase6.py::TestCostEngine::test_preset_ordering_small_lt_medium_lt_large PASSED [ 15%]
+tests/test_phase6.py::TestCostEngine::test_unknown_preset_raises PASSED  [ 16%]
+tests/test_phase6.py::TestCostEngine::test_no_input_raises PASSED        [ 17%]
+tests/test_phase6.py::TestCostEngine::test_custom_config_higher_salary_increases_tco PASSED [ 18%]
+tests/test_phase6.py::TestCostEngine::test_zero_maintenance_rate_gives_zero_maintenance PASSED [ 18%]
+tests/test_phase6.py::TestRiskEngine::test_expected_value_formula_manual PASSED [ 19%]
+tests/test_phase6.py::TestRiskEngine::test_total_equals_sum_of_components PASSED [ 20%]
+tests/test_phase6.py::TestRiskEngine::test_zero_probability_gives_zero_cost PASSED [ 21%]
+tests/test_phase6.py::TestRiskEngine::test_probability_one_gives_full_cost PASSED [ 21%]
+tests/test_phase6.py::TestRiskEngine::test_all_zeros_gives_zero_total PASSED [ 22%]
+tests/test_phase6.py::TestRiskEngine::test_all_max_gives_sum_of_costs PASSED [ 23%]
+tests/test_phase6.py::TestRiskEngine::test_adjusted_tco_equals_base_plus_risk PASSED [ 23%]
+tests/test_phase6.py::TestRiskEngine::test_zero_risk_adjusted_tco_equals_base PASSED [ 24%]
+tests/test_phase6.py::TestRiskEngine::test_adjusted_tco_always_gte_base PASSED [ 25%]
+tests/test_phase6.py::TestRiskEngine::test_risk_probability_boundary_zero PASSED [ 26%]
+tests/test_phase6.py::TestRiskEngine::test_risk_probability_boundary_one PASSED [ 26%]
+tests/test_phase6.py::TestRiskEngine::test_cost_boundary_zero PASSED     [ 27%]
+tests/test_phase6.py::TestRiskEngine::test_probability_above_1_raises PASSED [ 28%]
+tests/test_phase6.py::TestRiskEngine::test_probability_below_0_raises PASSED [ 28%]
+tests/test_phase6.py::TestRiskEngine::test_negative_cost_raises PASSED   [ 29%]
+tests/test_phase6.py::TestRiskEngine::test_string_input_raises_type_error PASSED [ 30%]
+tests/test_phase6.py::TestRiskEngine::test_none_input_raises_type_error PASSED [ 31%]
+tests/test_phase6.py::TestRiskEngine::test_adjusted_tco_negative_base_raises PASSED [ 31%]
+tests/test_phase6.py::TestRiskEngine::test_adjusted_tco_wrong_dict_key_raises PASSED [ 32%]
+tests/test_phase6.py::TestCloudCostEngine::test_yearly_cost_formula_manual FAILED [ 33%]
+tests/test_phase6.py::TestCloudCostEngine::test_reserved_1yr_discount PASSED [ 34%]
+tests/test_phase6.py::TestCloudCostEngine::test_reserved_3yr_discount PASSED [ 34%]
+tests/test_phase6.py::TestCloudCostEngine::test_pricing_model_ordering PASSED [ 35%]
+tests/test_phase6.py::TestCloudCostEngine::test_invalid_pricing_model_raises PASSED [ 36%]
+tests/test_phase6.py::TestCloudCostEngine::test_doubling_servers_doubles_cost PASSED [ 36%]
+tests/test_phase6.py::TestCloudCostEngine::test_zero_servers_gives_zero_cost PASSED [ 37%]
+tests/test_phase6.py::TestCloudCostEngine::test_right_sizing_formula_manual PASSED [ 38%]
+tests/test_phase6.py::TestCloudCostEngine::test_right_sizing_low_utilisation_reduces_resources PASSED [ 39%]
+tests/test_phase6.py::TestCloudCostEngine::test_right_sizing_high_utilisation_keeps_resources PASSED [ 39%]
+tests/test_phase6.py::TestCloudCostEngine::test_right_sizing_ram_snaps_to_standard_sizes PASSED [ 40%]
+tests/test_phase6.py::TestCloudCostEngine::test_run_cloud_analysis_returns_all_providers PASSED [ 41%]
+tests/test_phase6.py::TestCloudCostEngine::test_run_cloud_analysis_best_provider_has_lowest_cost PASSED [ 42%]
+tests/test_phase6.py::TestCloudCostEngine::test_run_cloud_analysis_all_pricing_models_in_output PASSED [ 42%]
+tests/test_phase6.py::TestCloudCostEngine::test_run_cloud_analysis_reserved_cheaper_than_on_demand PASSED [ 43%]
+tests/test_phase6.py::TestCloudCostEngine::test_run_cloud_analysis_reduction_pct_non_negative PASSED [ 44%]
+tests/test_phase6.py::TestCloudCostEngine::test_invalid_utilisation_raises PASSED [ 44%]
+tests/test_phase6.py::TestCloudCostEngine::test_zero_servers_raises PASSED [ 45%]
+tests/test_phase6.py::TestRuleEngine::test_hybrid_when_high_compliance_and_low_downtime FAILED [ 46%]
+tests/test_phase6.py::TestRuleEngine::test_hybrid_overrides_growth_when_compliance_high_downtime_low FAILED [ 47%]
+tests/test_phase6.py::TestRuleEngine::test_cloud_native_when_high_growth FAILED [ 47%]
+tests/test_phase6.py::TestRuleEngine::test_lift_and_shift_as_default FAILED [ 48%]
+tests/test_phase6.py::TestRuleEngine::test_all_valid_level_combinations_do_not_crash FAILED [ 49%]
+tests/test_phase6.py::TestRuleEngine::test_integer_compliance_raises_type_error PASSED [ 50%]
+tests/test_phase6.py::TestRuleEngine::test_invalid_level_string_raises_value_error PASSED [ 50%]
+tests/test_phase6.py::TestRuleEngine::test_uppercase_level_normalised FAILED [ 51%]
+tests/test_phase6.py::TestRuleEngine::test_whitespace_level_normalised FAILED [ 52%]
+tests/test_phase6.py::TestRuleEngine::test_dr_low_downtime_gives_hot_dr PASSED [ 52%]
+tests/test_phase6.py::TestRuleEngine::test_dr_medium_downtime_gives_warm_dr PASSED [ 53%]
+tests/test_phase6.py::TestRuleEngine::test_dr_high_downtime_gives_cold_dr PASSED [ 54%]
+tests/test_phase6.py::TestRuleEngine::test_dr_invalid_raises PASSED      [ 55%]
+tests/test_phase6.py::TestRuleEngine::test_dr_integer_raises PASSED      [ 55%]
+tests/test_phase6.py::TestRuleEngine::test_each_strategy_has_exactly_five_roadmap_phases PASSED [ 56%]
+tests/test_phase6.py::TestRuleEngine::test_roadmap_phases_are_non_empty_strings PASSED [ 57%]
+tests/test_phase6.py::TestRuleEngine::test_get_migration_roadmap_returns_list PASSED [ 57%]
+tests/test_phase6.py::TestRuleEngine::test_unknown_strategy_raises PASSED [ 58%]
+tests/test_phase6.py::TestRuleEngine::test_roadmap_integer_raises PASSED [ 59%]
+tests/test_phase6.py::TestDecisionEngine::test_high_confidence_when_cloud_saves_more_than_20pct PASSED [ 60%]
+tests/test_phase6.py::TestDecisionEngine::test_medium_confidence_at_10pct_saving PASSED [ 60%]
+tests/test_phase6.py::TestDecisionEngine::test_low_confidence_at_3pct_saving PASSED [ 61%]
+tests/test_phase6.py::TestDecisionEngine::test_stay_on_prem_when_cloud_is_more_expensive PASSED [ 62%]
+tests/test_phase6.py::TestDecisionEngine::test_full_migration_above_20pct_saving FAILED [ 63%]
+tests/test_phase6.py::TestDecisionEngine::test_hybrid_migration_between_5_and_20pct FAILED [ 63%]
+tests/test_phase6.py::TestDecisionEngine::test_selective_migration_between_0_and_5pct FAILED [ 64%]
+tests/test_phase6.py::TestDecisionEngine::test_stay_on_prem_strategy_when_no_saving FAILED [ 65%]
+tests/test_phase6.py::TestDecisionEngine::test_summary_key_present PASSED [ 65%]
+tests/test_phase6.py::TestDecisionEngine::test_summary_migrate_when_savings_exist PASSED [ 66%]
+tests/test_phase6.py::TestDecisionEngine::test_summary_stay_when_all_providers_expensive PASSED [ 67%]
+tests/test_phase6.py::TestDecisionEngine::test_zero_onprem_cost_raises PASSED [ 68%]
+tests/test_phase6.py::TestDecisionEngine::test_negative_onprem_cost_raises PASSED [ 68%]
+tests/test_phase6.py::TestDecisionEngine::test_invalid_pricing_model_raises PASSED [ 69%]
+tests/test_phase6.py::TestDecisionEngine::test_all_pricing_keys_in_per_provider_result PASSED [ 70%]
+tests/test_phase6.py::TestZombieDetector::test_detects_zombie_high_ram_low_util PASSED [ 71%]
+tests/test_phase6.py::TestZombieDetector::test_no_zombie_when_utilisation_healthy PASSED [ 71%]
+tests/test_phase6.py::TestZombieDetector::test_multiple_zombies_returns_warning_or_critical PASSED [ 72%]
+tests/test_phase6.py::TestZombieDetector::test_empty_server_list PASSED  [ 73%]
+tests/test_phase6.py::TestZombieDetector::test_potential_savings_pct_non_negative PASSED [ 73%]
+tests/test_phase6.py::TestZombieDetector::test_zombie_has_recommendation PASSED [ 74%]
+tests/test_phase6.py::TestNLPRiskClassifier::test_detects_data_security_concerns PASSED [ 75%]
+tests/test_phase6.py::TestNLPRiskClassifier::test_detects_skill_gap_concerns PASSED [ 76%]
+tests/test_phase6.py::TestNLPRiskClassifier::test_detects_multiple_categories PASSED [ 76%]
+tests/test_phase6.py::TestNLPRiskClassifier::test_empty_text_returns_no_risk PASSED [ 77%]
+tests/test_phase6.py::TestNLPRiskClassifier::test_no_keywords_returns_empty PASSED [ 78%]
+tests/test_phase6.py::TestNLPRiskClassifier::test_probability_adjustments_structure PASSED [ 78%]
+tests/test_phase6.py::TestNLPRiskClassifier::test_financial_penalty_scales_with_cloud_cost PASSED [ 79%]
+tests/test_phase6.py::TestNLPRiskClassifier::test_zero_cloud_cost_gives_zero_penalty PASSED [ 80%]
+tests/test_phase6.py::TestFailureProbability::test_low_risk_strategy_with_good_conditions PASSED [ 81%]
+tests/test_phase6.py::TestFailureProbability::test_high_risk_cloud_native_low_budget PASSED [ 81%]
+tests/test_phase6.py::TestFailureProbability::test_skilled_team_reduces_probability PASSED [ 82%]
+tests/test_phase6.py::TestFailureProbability::test_negative_roi_increases_risk PASSED [ 83%]
+tests/test_phase6.py::TestFailureProbability::test_probability_clamped_between_bounds PASSED [ 84%]
+tests/test_phase6.py::TestFailureProbability::test_verdict_is_non_empty_string PASSED [ 84%]
+tests/test_phase6.py::TestIntegration::test_best_provider_savings_match_decision_engine PASSED [ 85%]
+tests/test_phase6.py::TestIntegration::test_risk_adjusted_cost_exceeds_base_cloud_cost PASSED [ 86%]
+tests/test_phase6.py::TestIntegration::test_decision_summary_best_provider_matches_cloud_engine PASSED [ 86%]
+tests/test_phase6.py::TestIntegration::test_tco_5yr_consistent_with_annual_opex PASSED [ 87%]
+tests/test_phase6.py::TestIntegration::test_pipeline_with_small_preset PASSED [ 88%]
+tests/test_phase6.py::TestIntegration::test_pipeline_with_large_preset PASSED [ 89%]
+tests/test_phase6.py::TestReportGenerator::test_html_report_is_string PASSED [ 89%]
+tests/test_phase6.py::TestReportGenerator::test_html_report_minimum_length PASSED [ 90%]
+tests/test_phase6.py::TestReportGenerator::test_html_report_contains_org_name PASSED [ 91%]
+tests/test_phase6.py::TestReportGenerator::test_html_report_contains_all_phase_headings PASSED [ 92%]
+tests/test_phase6.py::TestReportGenerator::test_html_report_contains_executive_summary PASSED [ 92%]
+tests/test_phase6.py::TestReportGenerator::test_html_report_contains_migration_roadmap PASSED [ 93%]
+tests/test_phase6.py::TestReportGenerator::test_html_report_contains_ml_section PASSED [ 94%]
+tests/test_phase6.py::TestReportGenerator::test_html_report_is_valid_html PASSED [ 94%]
+tests/test_phase6.py::TestReportGenerator::test_html_report_with_partial_data PASSED [ 95%]
+tests/test_phase6.py::TestReportGenerator::test_csv_export_is_string PASSED [ 96%]
+tests/test_phase6.py::TestReportGenerator::test_csv_export_minimum_length PASSED [ 97%]
+tests/test_phase6.py::TestReportGenerator::test_csv_export_contains_all_phase_headers PASSED [ 97%]
+tests/test_phase6.py::TestReportGenerator::test_csv_export_contains_org_name PASSED [ 98%]
+tests/test_phase6.py::TestReportGenerator::test_csv_export_is_parseable PASSED [ 99%]
+tests/test_phase6.py::TestReportGenerator::test_csv_export_contains_key_metrics PASSED [100%]
+
+================================== FAILURES ===================================
+_____________________ TestCostEngine.test_tco_3yr_formula _____________________
+tests\test_phase6.py:147: in test_tco_3yr_formula
+    assert r["annual_operational_cost"] == expected_opex
+E   assert 99250.0 == 93250
+_____________ TestCloudCostEngine.test_yearly_cost_formula_manual _____________
+tests\test_phase6.py:394: in test_yearly_cost_formula_manual
+    assert result == pytest.approx(0.192 * 8760 * 10 * 1.00)
+E   assert 21494.9376 == 16819.2 ▒ 0.0168192
+E     
+E     comparison failed
+E     Obtained: 21494.9376
+E     Expected: 16819.2 ▒ 0.0168192
+______ TestRuleEngine.test_hybrid_when_high_compliance_and_low_downtime _______
+tests\test_phase6.py:512: in test_hybrid_when_high_compliance_and_low_downtime
+    assert rule_recommend("high", "low", "medium") == "Hybrid Migration"
+E   AssertionError: assert {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Hybrid Migration'} == 'Hybrid Migration'
+E    +  where {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Hybrid Migration'} = rule_recommend('high', 'low', 'medium')
+_ TestRuleEngine.test_hybrid_overrides_growth_when_compliance_high_downtime_low _
+tests\test_phase6.py:516: in test_hybrid_overrides_growth_when_compliance_high_downtime_low
+    assert rule_recommend("high", "low", "high") == "Hybrid Migration"
+E   AssertionError: assert {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Hybrid Migration'} == 'Hybrid Migration'
+E    +  where {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Hybrid Migration'} = rule_recommend('high', 'low', 'high')
+______________ TestRuleEngine.test_cloud_native_when_high_growth ______________
+tests\test_phase6.py:520: in test_cloud_native_when_high_growth
+    assert rule_recommend("low",    "medium", "high") == "Cloud-Native Migration"
+E   AssertionError: assert {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Cloud-Native Migration'} == 'Cloud-Native Migration'
+E    +  where {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Cloud-Native Migration'} = rule_recommend('low', 'medium', 'high')
+________________ TestRuleEngine.test_lift_and_shift_as_default ________________
+tests\test_phase6.py:526: in test_lift_and_shift_as_default
+    assert rule_recommend("low",    "low",    "low")    == "Lift-and-Shift"
+E   AssertionError: assert {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Lift-and-Shift'} == 'Lift-and-Shift'
+E    +  where {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Lift-and-Shift'} = rule_recommend('low', 'low', 'low')
+________ TestRuleEngine.test_all_valid_level_combinations_do_not_crash ________
+tests\test_phase6.py:539: in test_all_valid_level_combinations_do_not_crash
+    assert result in valid_strategies, f"Invalid strategy for ({c},{d},{g}): {result}"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: unhashable type: 'dict'
+_______________ TestRuleEngine.test_uppercase_level_normalised ________________
+tests\test_phase6.py:553: in test_uppercase_level_normalised
+    assert rule_recommend("HIGH", "LOW", "MEDIUM") == "Hybrid Migration"
+E   AssertionError: assert {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Hybrid Migration'} == 'Hybrid Migration'
+E    +  where {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Hybrid Migration'} = rule_recommend('HIGH', 'LOW', 'MEDIUM')
+_______________ TestRuleEngine.test_whitespace_level_normalised _______________
+tests\test_phase6.py:557: in test_whitespace_level_normalised
+    assert rule_recommend("  high  ", "  low  ", "  medium  ") == "Hybrid Migration"
+E   AssertionError: assert {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Hybrid Migration'} == 'Hybrid Migration'
+E    +  where {'debt_check': None, 'original_strategy': None, 'overridden': False, 'strategy': 'Hybrid Migration'} = rule_recommend('  high  ', '  low  ', '  medium  ')
+__________ TestDecisionEngine.test_full_migration_above_20pct_saving __________
+tests\test_phase6.py:648: in test_full_migration_above_20pct_saving
+    assert result["AWS"]["strategy"] == "Full Migration"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'strategy'
+________ TestDecisionEngine.test_hybrid_migration_between_5_and_20pct _________
+tests\test_phase6.py:652: in test_hybrid_migration_between_5_and_20pct
+    assert result["AWS"]["strategy"] == "Hybrid Migration"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'strategy'
+_______ TestDecisionEngine.test_selective_migration_between_0_and_5pct ________
+tests\test_phase6.py:656: in test_selective_migration_between_0_and_5pct
+    assert result["AWS"]["strategy"] == "Selective Migration"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'strategy'
+________ TestDecisionEngine.test_stay_on_prem_strategy_when_no_saving _________
+tests\test_phase6.py:660: in test_stay_on_prem_strategy_when_no_saving
+    assert result["AWS"]["strategy"] == "Stay On-Prem"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'strategy'
+=========================== short test summary info ===========================
+FAILED tests/test_phase6.py::TestCostEngine::test_tco_3yr_formula - assert 99...
+FAILED tests/test_phase6.py::TestCloudCostEngine::test_yearly_cost_formula_manual
+FAILED tests/test_phase6.py::TestRuleEngine::test_hybrid_when_high_compliance_and_low_downtime
+FAILED tests/test_phase6.py::TestRuleEngine::test_hybrid_overrides_growth_when_compliance_high_downtime_low
+FAILED tests/test_phase6.py::TestRuleEngine::test_cloud_native_when_high_growth
+FAILED tests/test_phase6.py::TestRuleEngine::test_lift_and_shift_as_default
+FAILED tests/test_phase6.py::TestRuleEngine::test_all_valid_level_combinations_do_not_crash
+FAILED tests/test_phase6.py::TestRuleEngine::test_uppercase_level_normalised
+FAILED tests/test_phase6.py::TestRuleEngine::test_whitespace_level_normalised
+FAILED tests/test_phase6.py::TestDecisionEngine::test_full_migration_above_20pct_saving
+FAILED tests/test_phase6.py::TestDecisionEngine::test_hybrid_migration_between_5_and_20pct
+FAILED tests/test_phase6.py::TestDecisionEngine::test_selective_migration_between_0_and_5pct
+FAILED tests/test_phase6.py::TestDecisionEngine::test_stay_on_prem_strategy_when_no_saving
+======================= 13 failed, 125 passed in 0.86s ========================

@@ -171,12 +171,15 @@ st.markdown("""
 
 
 # ── Session state init ────────────────────────────────────────────────────────
-for key in ["tco_result", "cloud_analysis", "servers", "storage_tb",
-            "cpu_util", "ram_util", "pricing_model",
-            "report_risk", "report_strategy", "report_ml",
-            "report_migration_econ", "report_audit"]:
-    if key not in st.session_state:
-        st.session_state[key] = None
+from models import MigrationSessionState
+
+if "state_initialized" not in st.session_state:
+    # Initialize with strict typing and defaults via Pydantic
+    initial_state = MigrationSessionState().model_dump()
+    for key, val in initial_state.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
+    st.session_state["state_initialized"] = True
 
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -1381,23 +1384,73 @@ with tab5:
                 </div>
                 """, unsafe_allow_html=True)
 
-        # Probability bar
-        bar_pct = min(100, prob_pct)
-        st.markdown(f"""
-        <div style="margin:16px 0;">
-          <div style="display:flex;justify-content:space-between;color:#94a3b8;font-size:.8rem;margin-bottom:4px;">
-            <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
-          </div>
-          <div style="background:#334155;border-radius:8px;height:24px;overflow:hidden;position:relative;">
-            <div style="background:linear-gradient(90deg, #22c55e, #f59e0b, #ef4444);
-                        width:{bar_pct}%;height:100%;border-radius:8px;
-                        transition:width 0.5s ease;"></div>
-            <span style="position:absolute;right:8px;top:3px;color:#fff;font-weight:700;font-size:.8rem;">
-              {prob_pct:.0f}%
-            </span>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        # ── Interactive Plotly Gauge ──────────────────────────────────────
+        fig_gauge = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = prob_pct,
+            title = {'text': "Failure Probability (%)", 'font': {'size': 18}},
+            number = {'suffix': "%", 'font': {'size': 36}},
+            gauge = {
+                'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#94a3b8"},
+                'bar': {'color': tc},
+                'bgcolor': "rgba(0,0,0,0)",
+                'borderwidth': 0,
+                'steps': [
+                    {'range': [0, 15],  'color': "rgba(34, 197, 94, 0.15)"},
+                    {'range': [15, 35], 'color': "rgba(245, 158, 11, 0.15)"},
+                    {'range': [35, 60], 'color': "rgba(239, 68, 68, 0.15)"},
+                    {'range': [60, 100],'color': "rgba(153, 27, 27, 0.25)"}],
+            }
+        ))
+        fig_gauge.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", 
+            font_color="#e2e8f0", height=280, margin=dict(t=40, b=10, l=10, r=10)
+        )
+        st.plotly_chart(fig_gauge, use_container_width=True)
+
+        if failure["adjustments"]:
+            factors = []
+            vals = []
+            measure = []
+            texts = []
+            current_prob = failure["base_rate"] * 100
+            
+            factors.append("Base Rate")
+            vals.append(current_prob)
+            measure.append("absolute")
+            texts.append(f"{current_prob:.0f}%")
+            
+            for adj in failure["adjustments"]:
+                val_pct = float(adj['adjustment'].strip('%').replace('+',''))
+                factors.append(adj['factor'])
+                vals.append(val_pct)
+                measure.append("relative")
+                texts.append(f"{'+' if val_pct > 0 else ''}{val_pct:.0f}%")
+                
+            factors.append("Final Prob")
+            vals.append(prob_pct)
+            measure.append("total")
+            texts.append(f"{prob_pct:.0f}%")
+
+            fig_wf = go.Figure(go.Waterfall(
+                orientation = "v",
+                measure = measure,
+                x = factors,
+                textposition = "outside",
+                text = texts,
+                y = vals,
+                connector = {"line":{"color":"#334155"}},
+                decreasing = {"marker":{"color":"#22c55e"}},
+                increasing = {"marker":{"color":"#ef4444"}},
+                totals = {"marker":{"color":"#3b82f6"}}
+            ))
+            fig_wf.update_layout(
+                title = "Volatility Breakdown (Failure Probability Factors)",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,0.8)",
+                font_color="#e2e8f0", height=350, margin=dict(t=40, b=20),
+                yaxis=dict(gridcolor="#334155")
+            )
+            st.plotly_chart(fig_wf, use_container_width=True)
 
         # ── Friction Report ──────────────────────────────────────────────
         st.markdown("---")

@@ -1,0 +1,40 @@
+cloud_cost:
+  right_sizing_buffer: 1.20
+  
+  pricing_model_multipliers:
+    on_demand: 1.00
+    reserved_1yr: 0.65
+    reserved_3yr: 0.45
+  
+  egress_and_iops_rate: 0.065
+  managed_services_premium: 0.20
+
+strategy_prediction:
+  # Base failure probability per strategy
+  base_failure_rates:
+    "Lift-and-Shift": 0.08
+    "Retain On-Premise": 0.05
+    "Hybrid Migration": 0.22
+    "Cloud-Native Migration": 0.38
+    
+  # Cost tiers (1=Low, 3=High)
+  strategy_cost_tier:
+    "Lift-and-Shift": 1
+    "Retain On-Premise": 1
+    "Hybrid Migration": 2
+    "Cloud-Native Migration": 3
+
+  # Labor cost multipliers for execution complexity
+  strategy_labor_mult:
+    "Lift-and-Shift": 1.0
+    "Retain On-Premise": 1.0
+    "Hybrid Migration": 3.0
+    "Cloud-Native Migration": 10.0
+
+risk_nlp:
+  # Score mapping
+  severity_scores:
+    "Low": 1
+    "Medium": 2
+    "High": 3
+    "Critical": 4

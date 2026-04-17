@@ -23,31 +23,32 @@ import math
 logger = logging.getLogger(__name__)
 
 
+from config_loader import get_config_val
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Strategy Cost Tiers & Labor Multipliers
 # ─────────────────────────────────────────────────────────────────────────────
 
-STRATEGY_COST_TIER = {
+STRATEGY_COST_TIER = get_config_val('strategy_prediction.strategy_cost_tier', {
     "Lift-and-Shift":         1,
     "Retain On-Premise":      1,
     "Hybrid Migration":       2,
     "Cloud-Native Migration": 3,
-}
+})
 
-STRATEGY_LABOR_MULT = {
+STRATEGY_LABOR_MULT = get_config_val('strategy_prediction.strategy_labor_mult', {
     "Lift-and-Shift":         1.0,
     "Retain On-Premise":      1.0,
     "Hybrid Migration":       3.0,
     "Cloud-Native Migration": 10.0,
-}
+})
 
-# Base failure probability per strategy (before adjustments)
-BASE_FAILURE_RATES = {
-    "Lift-and-Shift":         0.08,   #  8% — lowest complexity
-    "Retain On-Premise":      0.05,   #  5% — no migration
-    "Hybrid Migration":       0.22,   # 22% — dual-track complexity
-    "Cloud-Native Migration": 0.38,   # 38% — highest complexity
-}
+BASE_FAILURE_RATES = get_config_val('strategy_prediction.base_failure_rates', {
+    "Lift-and-Shift":         0.08,
+    "Retain On-Premise":      0.05,
+    "Hybrid Migration":       0.22,
+    "Cloud-Native Migration": 0.38,
+})
 
 BUDGET_LABELS = {
     "low":    "Low Budget / Cost-Sensitive",

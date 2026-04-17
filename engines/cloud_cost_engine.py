@@ -4,38 +4,22 @@ from engines.instance_selector import find_best_instances, validate_inputs
 
 logger = logging.getLogger(__name__)
 
+from config_loader import get_config_val
+
 HOURS_PER_YEAR = 8760
 
 # -----------------------------------------------------------------------
-# Right-Sizing Buffer
-# Using a tighter 20% buffer (was 30%) — reflects actual cloud elasticity.
-# The old 30% "safety buffer" made cloud look artificially expensive.
+# Dynamically loaded from config.yaml
 # -----------------------------------------------------------------------
-RIGHTSIZING_BUFFER = 1.20
+RIGHTSIZING_BUFFER       = get_config_val('cloud_cost.right_sizing_buffer', 1.20)
+EGRESS_AND_IOPS_RATE     = get_config_val('cloud_cost.egress_and_iops_rate', 0.065)
+MANAGED_SERVICES_PREMIUM = get_config_val('cloud_cost.managed_services_premium', 0.20)
 
-# -----------------------------------------------------------------------
-# Pricing Model Multipliers
-# -----------------------------------------------------------------------
-PRICING_MODELS = {
-    "on_demand":    1.00,   # Full hourly rate, no commitment
-    "reserved_1yr": 0.65,   # ~35% discount for 1-year commitment
-    "reserved_3yr": 0.45,   # ~55% discount for 3-year commitment
-}
-
-# -----------------------------------------------------------------------
-# Realistic Cloud Overhead Coefficients
-# These replace the former flat 30% safety buffer with structured fees
-# that reflect real-world cloud billing components.
-# -----------------------------------------------------------------------
-
-# Connectivity & IOPS fee: covers standard data egress + cross-AZ traffic.
-# Range: 5–8% of base compute. We default to 6.5% (midpoint).
-EGRESS_AND_IOPS_RATE = 0.065      # 6.5%
-
-# Managed Services Premium: reflects cost of offloading DB/cache
-# maintenance to a provider (e.g. RDS vs raw EC2).
-# Range: 20% over raw compute for managed services.
-MANAGED_SERVICES_PREMIUM = 0.20   # 20%
+PRICING_MODELS = get_config_val('cloud_cost.pricing_model_multipliers', {
+    "on_demand":    1.00,
+    "reserved_1yr": 0.65,
+    "reserved_3yr": 0.45,
+})
 
 # -----------------------------------------------------------------------
 # Cloud Cost Engine

@@ -202,7 +202,10 @@ def analyze_migration_concerns(
     risk_score    = 0
     recommendations = []
 
-    severity_scores = {"Low": 1, "Medium": 2, "High": 3, "Critical": 4}
+    from config_loader import get_config_val
+    severity_scores = get_config_val('risk_nlp.severity_scores', {
+        "Low": 1, "Medium": 2, "High": 3, "Critical": 4
+    })
 
     for cat_key, cat_def in RISK_CATEGORIES.items():
         matched_keywords = [kw for kw in cat_def["keywords"] if kw in text_lower]
