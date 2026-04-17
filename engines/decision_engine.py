@@ -151,13 +151,16 @@ def calculate_roi_timeline(
     }
 
 
-def _fmt_currency(val: float) -> str:
-    """Simple currency formatter for narrative strings."""
-    if abs(val) >= 1_000_000:
-        return f"${val/1_000_000:.1f}M"
+def _fmt_currency(usd_val: float) -> str:
+    """Simple currency formatter for narrative strings using INR logic."""
+    val = usd_val * 84.0
+    if abs(val) >= 10_000_000:
+        return f"₹{val/10_000_000:.2f}Cr"
+    elif abs(val) >= 100_000:
+        return f"₹{val/100_000:.1f}L"
     elif abs(val) >= 1_000:
-        return f"${val/1_000:.0f}K"
-    return f"${val:.0f}"
+        return f"₹{val/1_000:.0f}K"
+    return f"₹{val:.0f}"
 
 
 # -----------------------------------------------------------------------
@@ -210,13 +213,13 @@ def recommend_strategy(
         if difference > 0:
             recommendation = "Migrate to Cloud"
             reason = (
-                f"{provider} saves ${difference:,.0f}/yr "
+                f"{provider} saves ₹{difference * 84:,.0f}/yr "
                 f"({savings_pct:.1f}% cheaper than on-prem)"
             )
         elif difference < 0:
             recommendation = "Stay On-Prem"
             reason = (
-                f"On-prem is ${abs(difference):,.0f}/yr cheaper than {provider} "
+                f"On-prem is ₹{abs(difference) * 84:,.0f}/yr cheaper than {provider} "
                 f"({abs(savings_pct):.1f}% more expensive in cloud)"
             )
         else:

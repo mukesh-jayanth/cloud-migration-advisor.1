@@ -41,7 +41,7 @@ The codebase is highly modular, with core logic decoupled from the UI:
 2. **Phase 2 — Cost Analysis**: Compare right-sized on-prem vs Cloud costs. Recommends the best provider and visualizes the 5-year TCO trajectory under varying cost commitments.
 3. **Phase 3 — Risk Analysis**: Models the financial impact of migration risks (Downtime, Compliance, Skill Gaps) against theoretical cloud savings.
 4. **Phase 4 — Strategy & Rules**: Pure rule-based engine logic to propose Lift-and-Shift, Hybrid, or Cloud-Native solutions based on specific business conditions (like compliance level).
-5. **Phase 5 — ML Prediction & Reports**: A decision-tree algorithm infers your ideal migration strategy automatically. Explains the result using clear, local XAI techniques. Includes an option in Tab 6 to export HTML and CSV reports.
+5. **Phase 5 — System Auditor & Reports**: An AI predictor evaluates your chosen strategy and budget to identify friction points and calculate project failure probabilities. Includes an option in Tab 6 to export HTML and CSV reports.
 
 ## 🐳 Docker Deployment
 To launch the app within a structured Docker environment:

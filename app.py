@@ -266,7 +266,7 @@ with st.sidebar:
         st.info("Complete at least one phase to enable export.")
 
     st.divider()
-    st.caption("Phases: Cost · Risk · Rules · ML · Multi-Cloud")
+    st.caption("Phases: Cost · Risk · Rules · Auditor · Multi-Cloud")
 
 
 # ── Title bar ─────────────────────────────────────────────────────────────────
@@ -278,7 +278,7 @@ st.markdown("""
     ☁️ Cloud Migration Decision Support System
   </h1>
   <p style="color:#94a3b8;margin:6px 0 0 0;font-size:.95rem;">
-    End-to-end infrastructure analysis · TCO modelling · Risk assessment · AI strategy recommendation
+    End-to-end infrastructure analysis · TCO modelling · Risk assessment · AI friction predictor
   </p>
 </div>
 """, unsafe_allow_html=True)
@@ -290,7 +290,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💰 Phase 2 — Cost Analysis",
     "⚠️ Phase 3 — Risk Analysis",
     "🧭 Phase 4 — Strategy & Rules",
-    "🤖 Phase 5 — ML Prediction",
+    "🤖 Phase 5 — Friction & Failure Predictor",
     "📥 Export Report"
 ])
 
@@ -1609,7 +1609,7 @@ with tab6:
                 ("Phase 2 — Cost",     "Right-sizing table + provider comparison + savings"),
                 ("Phase 3 — Risk",     "Risk factor table + adjusted costs + verdict banner"),
                 ("Phase 4 — Strategy", "Migration strategy + DR plan + phased roadmap"),
-                ("Phase 5 — ML",       "Prediction + confidence + XAI factors + decision path"),
+                ("Phase 5 — System Auditor", "Friction level + failure probability + risk breakdown"),
             ]:
                 st.markdown(
                     f'<div style="display:flex;gap:10px;padding:7px 12px;'
@@ -1634,6 +1634,6 @@ st.markdown("""
   Cloud Migration Decision Support System &nbsp;·&nbsp;
   Phase 1: TCO Engine &nbsp;·&nbsp; Phase 2: Cost Analysis &nbsp;·&nbsp;
   Phase 3: Risk Engine &nbsp;·&nbsp; Phase 4: Rule Engine &nbsp;·&nbsp;
-  Phase 5: ML Prediction
+  Phase 5: Friction & Failure Predictor
 </div>
 """, unsafe_allow_html=True)

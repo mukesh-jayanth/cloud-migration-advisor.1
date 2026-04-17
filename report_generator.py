@@ -3,7 +3,7 @@ report_generator.py
 Export Report Engine for CMDSS
 
 Generates a self-contained, print-ready HTML report from session data.
-Covers all 5 phases: TCO, Cost Analysis, Risk, Strategy, ML Prediction.
+Covers all 5 phases: TCO, Cost Analysis, Risk, Strategy, System Auditor.
 Also produces a CSV data export.
 """
 
@@ -643,7 +643,7 @@ def generate_html_report(report_data: dict) -> str:
     <div class="cover-phase">💰 Phase 2: Cost Analysis</div>
     <div class="cover-phase">⚠️ Phase 3: Risk Analysis</div>
     <div class="cover-phase">🧭 Phase 4: Rule Engine</div>
-    <div class="cover-phase">🤖 Phase 5: ML Prediction</div>
+    <div class="cover-phase">🤖 Phase 5: Friction & Failure Predictor</div>
   </div>
 </div>
 
