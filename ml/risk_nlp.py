@@ -11,9 +11,9 @@ Placement: Phase 3 — Risk Analysis (below the probability sliders)
 """
 
 import re
-import logging
+from logger_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -17,10 +17,10 @@ decision_engine. This module provides the "executive verdict" layer.
 Placement: Phase 5 — AI System Auditor (Friction & Failure Predictor)
 """
 
-import logging
 import math
+from logger_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 from config_loader import get_config_val

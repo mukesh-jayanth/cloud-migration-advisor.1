@@ -11,9 +11,9 @@ Placement: Phase 1 — Infrastructure & TCO (Inventory Integrity Check)
 """
 
 import math
-import logging
+from logger_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

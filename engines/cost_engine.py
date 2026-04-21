@@ -1,5 +1,8 @@
 import pandas as pd
 import math
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 # -----------------------------------------------------------------------
 # Enterprise Presets

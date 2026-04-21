@@ -459,33 +459,34 @@ with tab1:
         st.markdown("#### Server Utilisation")
         vcpu_input = st.number_input("vCPU per Server",      min_value=1, value=8)
         ram_input  = st.number_input("RAM per Server (GB)",  min_value=1, value=32)
-        cpu_util   = st.slider("CPU Utilisation (%)",        10, 100, 60, step=5)
-        ram_util   = st.slider("RAM Utilisation (%)",        10, 100, 70, step=5)
+        cpu_util   = st.slider("CPU Utilisation (%)",        1, 100, 60, step=1)
+        ram_util   = st.slider("RAM Utilisation (%)",        1, 100, 70, step=1)
 
         st.session_state["cpu_util"] = cpu_util
         st.session_state["ram_util"] = ram_util
 
         if st.session_state["servers"] and st.button("☁️ Run Cloud Analysis",
                                                        width="stretch", type="primary"):
-            try:
-                analysis = run_cloud_analysis(
-                    current_vcpu=vcpu_input,
-                    current_ram=ram_input,
-                    cpu_utilization=cpu_util,
-                    ram_utilization=ram_util,
-                    servers=st.session_state["servers"],
-                    pricing_model=pricing_model
-                )
-                st.session_state["cloud_analysis"] = analysis
-                st.session_state["vcpu_input"] = vcpu_input
-                st.session_state["ram_input"]  = ram_input
-                st.success("✅ Cloud analysis complete — see other tabs!")
-            except ValueError as ve:
-                st.error("⚠️ **Input Validation Error:** The provided input triggered a validation rule.")
-                st.info(f"Details: {ve}")
-            except Exception as e:
-                st.error("⚠️ **Unexpected Error:** We encountered an issue while running the cloud analysis.")
-                st.info("Please verify your input values and try again.")
+            with st.spinner("☁️ Running cloud pricing engine... This takes 1-2 seconds."):
+                try:
+                    analysis = run_cloud_analysis(
+                        current_vcpu=vcpu_input,
+                        current_ram=ram_input,
+                        cpu_utilization=cpu_util,
+                        ram_utilization=ram_util,
+                        servers=st.session_state["servers"],
+                        pricing_model=pricing_model
+                    )
+                    st.session_state["cloud_analysis"] = analysis
+                    st.session_state["vcpu_input"] = vcpu_input
+                    st.session_state["ram_input"]  = ram_input
+                    st.success("✅ Cloud analysis complete — see other tabs!")
+                except ValueError as ve:
+                    st.error("⚠️ **Input Validation Error:** The provided input triggered a validation rule.")
+                    st.info(f"Details: {ve}")
+                except Exception as e:
+                    st.error("⚠️ **Unexpected Error:** We encountered an issue while running the cloud analysis.")
+                    st.info("Please verify your input values and try again.")
 
     with col_right:
         result = st.session_state["tco_result"]
@@ -1326,17 +1327,18 @@ with tab5:
 
         annual_saving = onprem_fr - cloud_fr
 
-        failure = calculate_failure_probability(
-            strategy          = strategy_fr,
-            budget_level      = budget_fr_sel,
-            servers           = result_fr["servers"],
-            migration_premium = mig_premium,
-            annual_saving     = annual_saving,
-            has_skilled_team  = False,
-            has_cicd          = False,
-            zombie_count      = zombie_count,
-            nlp_risk_score    = nlp_score,
-        )
+        with st.spinner("🤖 AI Auditor is running Friction & Failure analysis..."):
+            failure = calculate_failure_probability(
+                strategy          = strategy_fr,
+                budget_level      = budget_fr_sel,
+                servers           = result_fr["servers"],
+                migration_premium = mig_premium,
+                annual_saving     = annual_saving,
+                has_skilled_team  = False,
+                has_cicd          = False,
+                zombie_count      = zombie_count,
+                nlp_risk_score    = nlp_score,
+            )
 
         prob_pct = failure["final_probability"] * 100
         tier     = failure["risk_tier"]

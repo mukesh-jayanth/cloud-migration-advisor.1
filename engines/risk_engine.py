@@ -6,6 +6,8 @@ Calculates risk-adjusted Total Cost of Ownership (TCO) for cloud migration
 by quantifying financial impact of downtime, compliance, and skill-gap risks.
 """
 
+from logger_config import get_logger
+logger = get_logger(__name__)
 
 def calculate_risk_adjustment(
     downtime_risk: float,

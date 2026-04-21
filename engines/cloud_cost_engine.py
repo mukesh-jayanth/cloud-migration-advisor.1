@@ -1,8 +1,8 @@
 import math
-import logging
+from logger_config import get_logger
 from engines.instance_selector import find_best_instances, validate_inputs
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 from config_loader import get_config_val
 

@@ -3,7 +3,9 @@
 Welcome to the **Cloud Migration Decision Support System**, an end-to-end infrastructure analysis, total cost of ownership (TCO) modeling, risk assessment, and AI strategy recommendation tool.
 
 ## 🌟 Overview
-The CMDSS evaluates existing on-premise application logic, infrastructure, and costs against modern cloud equivalents to generate comprehensive, data-driven migration recommendations. By integrating rule-based logic with Machine Learning prediction models, it outputs clear financial and strategic guidance.
+The CMDSS is a **Glass-Box AI advisor** that evaluates on-premise infrastructure and generates traceable, explainable cloud migration recommendations. Every recommendation links back to a specific, auditable rule or risk factor — no Black-Box model outputs.
+
+> **Methodology:** See [METHODOLOGY.md](METHODOLOGY.md) for a full explanation of why we chose an Interpretability-First design over a black-box ML model.
 
 ## 🚀 Getting Started
 
@@ -33,7 +35,8 @@ The codebase is highly modular, with core logic decoupled from the UI:
   - `cost_engine.py`: Computes CapEx/OpEx and models TCO with a configurable financial model.
   - `cloud_cost_engine.py`: Prices instances across top providers (AWS, Azure, GCP), adjusting for pricing models (On-Demand, Reserved).
   - `risk_engine.py` & `rule_engine.py`: Handle risk-adjustment for specific business scenarios.
-- **`ml/predict_strategy.py`**: An Explainable AI (XAI) engine utilizing scikit-learn's decision paths to outline *why* a cloud strategy was recommended.
+- **`ml/predict_strategy.py`**: The AI System Auditor — a Glass-Box Friction & Failure Predictor.
+- **`logger_config.py`**: Centralized audit logging. All engine decisions are logged to `logs/audit.log`.
 
 ## 🧭 The 5 Phases (Tabs)
 
