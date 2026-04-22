@@ -18,8 +18,11 @@ import os
 import sys
 
 # ── Log directory ─────────────────────────────────────────────────────────────
-LOG_DIR  = os.path.join(os.path.dirname(__file__), "logs")
-LOG_FILE = os.path.join(LOG_DIR, "audit.log")
+# On Streamlit Cloud the repo root is read-only; detect by absence of .git dir.
+# Fall back to /tmp so the FileHandler doesn't raise a PermissionError at startup.
+_IS_CLOUD = not os.path.isdir(os.path.join(os.path.dirname(__file__), ".git"))
+LOG_DIR   = "/tmp/cmdss_logs" if _IS_CLOUD else os.path.join(os.path.dirname(__file__), "logs")
+LOG_FILE  = os.path.join(LOG_DIR, "audit.log")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # ── Shared formatter ──────────────────────────────────────────────────────────
