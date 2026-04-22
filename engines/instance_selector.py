@@ -1,7 +1,8 @@
 import logging
 import pandas as pd
+from logger_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 import os
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))

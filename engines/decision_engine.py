@@ -152,7 +152,18 @@ def calculate_roi_timeline(
 
 
 def _fmt_currency(usd_val: float) -> str:
-    """Simple currency formatter for narrative strings using INR logic."""
+    """
+    Format a USD value as an INR string for embedding in narrative text.
+
+    ⚠️  IMPORTANT: This function always expects a value denominated in USD.
+    It multiplies by 84 (USD→INR) internally. Do NOT pass INR values here —
+    doing so will display amounts that are 84× too large.
+
+    The strings produced by this function are embedded directly in dict keys
+    like ``fragility_10pct_price`` and ``fragility_2mo_delay``, which are
+    rendered in the Streamlit UI via ``st.info()`` without further formatting.
+    app.py must NOT run these strings through its own ``inr()`` helper.
+    """
     val = usd_val * 84.0
     if abs(val) >= 10_000_000:
         return f"₹{val/10_000_000:.2f}Cr"

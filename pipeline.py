@@ -1,6 +1,17 @@
 import time
+import sys
+import io
 from engines.cloud_cost_engine import run_cloud_analysis
 from engines.decision_engine import recommend_strategy
+
+# Ensure UTF-8 output on Windows consoles (avoids UnicodeEncodeError with ✓/★ chars)
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+# NOTE: pipeline.py is a standalone CLI demo / smoke-test.
+# The primary code path is app.py (Streamlit). Run directly:
+#   python pipeline.py
+# to validate the cloud analysis + decision engine integration.
 
 
 # -------------------------------
@@ -105,11 +116,11 @@ def print_report(result: dict) -> None:
         print(f"\n  [ERROR] Pipeline failed: {result['error']}\n")
         return
 
-    sep = "─" * 60
+    sep = "-" * 60
 
-    print(f"\n{'═' * 60}")
+    print(f"\n{'=' * 60}")
     print(f"  MULTI-CLOUD DECISION REPORT")
-    print(f"{'═' * 60}")
+    print(f"{'=' * 60}")
 
     # -------------------------------
     # RIGHT-SIZING
@@ -129,7 +140,7 @@ def print_report(result: dict) -> None:
     print(sep)
 
     for provider, data in result["instances"].items():
-        match = "✓ optimal" if data["workload_match"] else "⚠ adjusted"
+        match = "[OK] optimal" if data["workload_match"] else "[~] adjusted"
         costs = result["costs"][provider]
 
         # Instance summary line
@@ -139,7 +150,7 @@ def print_report(result: dict) -> None:
             f"${data['price_per_hour']:.4f}/hr   {match}"
         )
 
-        # All-pricing breakdown — compare commitment levels at a glance
+        # All-pricing breakdown
         print(
             f"  {'':8}  "
             f"on-demand: ${costs['on_demand']:>10,.2f}   "
@@ -149,26 +160,24 @@ def print_report(result: dict) -> None:
 
     # -------------------------------
     # ANNUAL COST COMPARISON TABLE
-    # Columns: Provider | Cloud Cost | Savings | Confidence | Strategy
     # -------------------------------
     pricing_label = result["pricing_model"].replace("_", " ").upper()
     print(f"\n  ANNUAL COST COMPARISON  [{pricing_label}]")
     print(sep)
     print(
         f"  {'':1} {'Provider':<9} {'Cloud Cost':>12} "
-        f"{'Savings':>12}   {'Confidence':<10} Strategy"
+        f"{'Savings':>12}   {'Confidence':<10} Recommendation"
     )
     print(
-        f"  {'─':1} {'─'*9} {'─'*12} "
-        f"{'─'*12}   {'─'*10} {'─'*20}"
+        f"  {'-':1} {'-'*9} {'-'*12} "
+        f"{'-'*12}   {'-'*10} {'-'*20}"
     )
 
     for provider, data in result["decision"].items():
-        if provider == "_summary":
+        if provider in ("_summary", "_migration_economics"):
             continue
 
-        # Star marks the recommended provider
-        marker = "★" if provider == result["best_provider"] else " "
+        marker = "*" if provider == result["best_provider"] else " "
 
         savings_str = (
             f"+${data['savings']:,.0f}"
@@ -176,9 +185,11 @@ def print_report(result: dict) -> None:
             else f"-${abs(data['savings']):,.0f}"
         )
 
+        rec = data.get('recommendation', data.get('strategy', 'Migrate'))
+
         print(
             f" {marker} {provider:<9} ${data['cloud_cost']:>11,.2f} "
-            f"{savings_str:>12}   {data['confidence']:<10} {data['strategy']}"
+            f"{savings_str:>12}   {data['confidence']:<10} {rec}"
         )
 
     print(f"\n  {'':1} {'On-Prem':<9} ${result['onprem_cost']:>11,.2f}")
@@ -194,10 +205,9 @@ def print_report(result: dict) -> None:
 
     if summary.get("best_cloud_option"):
         print(f"  Best option  : {summary['best_cloud_option']}")
-        print(f"  Strategy     : {summary.get('strategy', 'N/A')}")
+        print(f"  Confidence   : {summary.get('confidence', 'N/A')}")
         print(f"  Annual save  : ${summary['best_savings']:,.2f} ({summary['best_savings_pct']:.1f}%)")
         print(f"  Monthly cost : ${result.get('best_monthly_cost', 0):,.2f}")
-        print(f"  Confidence   : {summary['confidence']}")
 
     print(f"  {summary.get('reason', '')}")
 
@@ -205,7 +215,7 @@ def print_report(result: dict) -> None:
     # PERFORMANCE
     # -------------------------------
     print(f"\n  Execution time : {result.get('execution_time_sec', 0)} sec")
-    print(f"\n{'═' * 60}\n")
+    print(f"\n{'=' * 60}\n")
 
 
 # -------------------------------

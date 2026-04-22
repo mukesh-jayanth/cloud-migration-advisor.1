@@ -73,7 +73,7 @@ RISK_CATEGORIES = {
             "overspend", "hidden cost", "billing shock", "run rate",
             "afford", "tight budget", "cost-sensitive", "financial risk",
         ],
-        "risk_field":      "compliance_risk",  # maps to general financial risk
+        "risk_field":      "skill_risk",   # best proxy for general execution risk
         "prob_adjustment": 0.10,
         "penalty_pct":     0.10,
         "severity":        "High",
@@ -280,7 +280,7 @@ def analyze_migration_concerns(
         if total_penalty > 0 and cloud_annual > 0:
             narrative += (
                 f"\n\n  📊 Total estimated financial penalty: "
-                f"${total_penalty:,.0f}/yr added to risk-adjusted cloud cost."
+                f"₹{total_penalty * 84:,.0f}/yr added to risk-adjusted cloud cost."
             )
 
     return {

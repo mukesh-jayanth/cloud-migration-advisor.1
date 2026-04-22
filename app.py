@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(name)s - %(le
 sys.path.insert(0, os.path.dirname(__file__))
 
 from engines.cost_engine import calculate_onprem_tco, calculate_manual_tco, MIGRATION_ECONOMICS
-from engines.cloud_cost_engine import run_cloud_analysis
+from engines.cloud_cost_engine import run_cloud_analysis, RIGHTSIZING_BUFFER
 from engines.risk_engine import calculate_risk_adjustment, risk_adjusted_tco
 from engines.rule_engine import recommend_strategy, recommend_dr, get_migration_roadmap, check_technical_debt
 from engines.decision_engine import recommend_strategy as financial_recommend, calculate_roi_timeline
@@ -171,7 +171,7 @@ st.markdown("""
 
 
 # ── Session state init ────────────────────────────────────────────────────────
-from models import MigrationSessionState
+from models import MigrationSessionState, set_state
 
 if "state_initialized" not in st.session_state:
     # Initialize with strict typing and defaults via Pydantic
@@ -406,10 +406,14 @@ with tab1:
             )
             if uploaded_file:
                 try:
+                    import pandas as _pd_upload
+                    _df_upload = _pd_upload.read_excel(uploaded_file)
                     result = calculate_onprem_tco(file_path=uploaded_file)
-                    st.session_state["tco_result"] = result
-                    st.session_state["servers"]    = result["servers"]
-                    st.session_state["storage_tb"] = result["storage_tb"]
+                    set_state("tco_result", result)
+                    set_state("servers",    result["servers"])
+                    set_state("storage_tb", result["storage_tb"])
+                    # Store individual rows so zombie detection can scan per-server-type
+                    set_state("infra_rows", _df_upload.to_dict(orient="records"))
                     st.success(
                         f"✅ Loaded: **{result['servers']} servers** · "
                         f"**{result['storage_tb']} TB** total storage"
@@ -439,9 +443,9 @@ with tab1:
             )
             if st.button("▶ Load Preset", width="stretch"):
                 result = calculate_onprem_tco(preset=preset)
-                st.session_state["tco_result"] = result
-                st.session_state["servers"]    = result["servers"]
-                st.session_state["storage_tb"] = result["storage_tb"]
+                set_state("tco_result", result)
+                set_state("servers",    result["servers"])
+                set_state("storage_tb", result["storage_tb"])
                 st.success(f"✅ Preset loaded: **{result['servers']} servers**, **{result['storage_tb']} TB**")
 
         elif input_method == "Manual Inputs":
@@ -449,9 +453,9 @@ with tab1:
             storage_input = st.number_input("Storage (TB)",        min_value=1.0, value=10.0, step=1.0)
             if st.button("▶ Calculate TCO", width="stretch"):
                 result = calculate_manual_tco(servers=servers_input, storage_tb=storage_input)
-                st.session_state["tco_result"] = result
-                st.session_state["servers"]    = result["servers"]
-                st.session_state["storage_tb"] = result["storage_tb"]
+                set_state("tco_result", result)
+                set_state("servers",    result["servers"])
+                set_state("storage_tb", result["storage_tb"])
                 st.success(f"✅ Calculated: **{result['servers']} servers**, **{result['storage_tb']} TB**")
 
         # ── Utilisation inputs ──
@@ -462,8 +466,8 @@ with tab1:
         cpu_util   = st.slider("CPU Utilisation (%)",        1, 100, 60, step=1)
         ram_util   = st.slider("RAM Utilisation (%)",        1, 100, 70, step=1)
 
-        st.session_state["cpu_util"] = cpu_util
-        st.session_state["ram_util"] = ram_util
+        set_state("cpu_util", cpu_util)
+        set_state("ram_util", ram_util)
 
         if st.session_state["servers"] and st.button("☁️ Run Cloud Analysis",
                                                        width="stretch", type="primary"):
@@ -477,9 +481,9 @@ with tab1:
                         servers=st.session_state["servers"],
                         pricing_model=pricing_model
                     )
-                    st.session_state["cloud_analysis"] = analysis
-                    st.session_state["vcpu_input"] = vcpu_input
-                    st.session_state["ram_input"]  = ram_input
+                    set_state("cloud_analysis", analysis)
+                    set_state("vcpu_input", vcpu_input)
+                    set_state("ram_input",  ram_input)
                     st.success("✅ Cloud analysis complete — see other tabs!")
                 except ValueError as ve:
                     st.error("⚠️ **Input Validation Error:** The provided input triggered a validation rule.")
@@ -550,34 +554,63 @@ with tab1:
                 st.markdown("#### Right-Sizing Result")
                 r1, r2, r3, r4 = st.columns(4)
                 r1.metric("vCPU (Before)", analysis["original_vcpu"])
+                # Show actual change in units (not a reduction %) so the sign is always correct
+                cpu_delta = analysis["recommended_vcpu"] - analysis["original_vcpu"]
+                ram_delta = analysis["recommended_ram"]  - analysis["original_ram"]
+                cpu_delta_str = (f"+{cpu_delta}" if cpu_delta >= 0 else str(cpu_delta)) + " vCPU"
+                ram_delta_str = (f"+{ram_delta}" if ram_delta >= 0 else str(ram_delta)) + " GB"
                 r2.metric("vCPU (After)",  analysis["recommended_vcpu"],
-                          delta=f"-{analysis['cpu_reduction_pct']}%")
+                          delta=cpu_delta_str)
                 r3.metric("RAM (Before)",  f"{analysis['original_ram']} GB")
                 r4.metric("RAM (After)",   f"{analysis['recommended_ram']} GB",
-                          delta=f"-{analysis['ram_reduction_pct']}%")
+                          delta=ram_delta_str)
 
+                buffer_pct = int((RIGHTSIZING_BUFFER - 1) * 100)
                 st.markdown(f"""
                 <div class="info-box">
                   🔬 <b>Workload Type:</b> {analysis['workload_type'].capitalize()} —
                   Right-sized from <b>{analysis['original_vcpu']} vCPU / {analysis['original_ram']} GB</b>
                   to <b>{analysis['recommended_vcpu']} vCPU / {analysis['recommended_ram']} GB</b>
-                  using actual utilisation + 30% safety buffer.
+                  using actual utilisation + {buffer_pct}% safety buffer.
                 </div>
                 """, unsafe_allow_html=True)
 
                 # ── Zombie Server / Inventory Integrity Check ────────────
                 st.markdown("---")
                 st.markdown("#### 🧟 Inventory Integrity Check")
-                st.caption("AI scans your infrastructure for over-provisioned 'zombie' servers before cloud pricing begins.")
 
-                # Build server list from session data
-                zombie_server_list = [{
-                    "name":         f"server-pool",
-                    "ram_gb":       float(st.session_state.get("ram_input", 32)),
-                    "vcpu":         int(st.session_state.get("vcpu_input", 8)),
-                    "cpu_util_pct": float(cpu_util),
-                    "ram_util_pct": float(ram_util),
-                }]
+                # Build server list: one record per server type from the Excel upload
+                # (stored in session state when using file upload mode), or fall back to
+                # the representative-server approach for preset / manual inputs.
+                _tco_r      = st.session_state.get("tco_result") or {}
+                _infra_rows = st.session_state.get("infra_rows")  # set by Excel upload path
+
+                if _infra_rows:  # per-server-type records from Excel
+                    zombie_server_list = [
+                        {
+                            "name":         row.get("Server Type", f"server-type-{i+1}"),
+                            "ram_gb":       float(st.session_state.get("ram_input", 32)),
+                            "vcpu":         int(st.session_state.get("vcpu_input", 8)),
+                            "cpu_util_pct": float(cpu_util),
+                            "ram_util_pct": float(ram_util),
+                        }
+                        for i, row in enumerate(_infra_rows)
+                    ]
+                    st.caption(
+                        f"Scanning {len(zombie_server_list)} server type(s) from your uploaded dataset."
+                    )
+                else:  # representative-server approach (preset or manual)
+                    zombie_server_list = [{
+                        "name":         "representative-server",
+                        "ram_gb":       float(st.session_state.get("ram_input", 32)),
+                        "vcpu":         int(st.session_state.get("vcpu_input", 8)),
+                        "cpu_util_pct": float(cpu_util),
+                        "ram_util_pct": float(ram_util),
+                    }]
+                    st.caption(
+                        "AI scans a representative server record from your inputs. "
+                        "Upload an Excel dataset for per-server-type analysis."
+                    )
                 zombie_result = detect_zombie_servers(zombie_server_list)
                 integrity = zombie_result["inventory_integrity"]
 
@@ -628,6 +661,16 @@ with tab1:
                         """, unsafe_allow_html=True)
 
                 st.session_state["report_audit"] = zombie_result
+                # Also store zombie summary in report_ml so it appears in exports.
+                # We merge only the zombie sub-key; other report_ml fields are
+                # populated later by Phase 5 and will overwrite this if present.
+                existing_ml = st.session_state.get("report_ml") or {}
+                if "zombie_count" not in existing_ml:   # don't stomp Phase-5 data
+                    st.session_state["report_ml"] = {
+                        **existing_ml,
+                        "zombie_count": zombie_result["zombie_count"],
+                        "waste_pct":    zombie_result["potential_savings_pct"],
+                    }
 
         else:
             st.markdown("""
@@ -905,7 +948,7 @@ with tab3:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    st.session_state["nlp_risk_result"] = nlp_result
+                    set_state("nlp_risk_result", nlp_result)
                 else:
                     st.info("✅ No specific risk categories detected in your description.")
 
@@ -925,7 +968,7 @@ with tab3:
                 adj_savings    = onprem_annual - adj_cloud_cost
                 adj_savings_p  = (adj_savings / onprem_annual * 100) if onprem_annual else 0
 
-                st.session_state["report_risk"] = {
+                set_state("report_risk", {
                     "risk":           risk,
                     "adj_cloud_cost": adj_cloud_cost,
                     "inputs": {
@@ -936,7 +979,7 @@ with tab3:
                         "skill_risk":          skill_risk,
                         "training_cost":       training_cost,
                     }
-                }
+                })
 
                 st.markdown("#### Risk-Adjusted Results")
 
@@ -1242,12 +1285,12 @@ with tab4:
                         if has_cicd:         discounts.append("CI/CD Automation (−20%)")
                         st.success(f"✅ Team discounts applied: {', '.join(discounts)}")
 
-                    st.session_state["report_migration_econ"] = econ
+                    set_state("report_migration_econ", econ)
                 else:
                     st.info("Migration economics unavailable — run cloud analysis in Tab 1 first.")
 
             # Save strategy to report state
-            st.session_state["report_strategy"] = {
+            set_state("report_strategy", {
                 "strategy":   strategy,
                 "overridden": overridden,
                 "debt_check": debt_check,
@@ -1258,7 +1301,7 @@ with tab4:
                     "downtime":   _downtime,
                     "growth":     _growth,
                 }
-            }
+            })
 
         except Exception as e:
             st.error("⚠️ **Strategy Engine Error:** The rule-based engine failed to process the inputs.")
@@ -1321,6 +1364,29 @@ with tab5:
             key="audit_budget"
         )
 
+        st.markdown("##### 👥 Team Capability Inputs")
+        st.caption(
+            "These inputs directly reduce the failure probability. "
+            "Accurate answers give you a more honest risk score."
+        )
+        col_cb1, col_cb2 = st.columns(2)
+        with col_cb1:
+            has_skilled_team = st.checkbox(
+                "My team has cloud expertise",
+                value=False,
+                key="audit_skilled_team",
+                help="Reduces failure probability by 10%. Check if your team has "
+                     "hands-on AWS/Azure/GCP experience or certified engineers."
+            )
+        with col_cb2:
+            has_cicd = st.checkbox(
+                "We have CI/CD pipelines",
+                value=False,
+                key="audit_cicd",
+                help="Reduces failure probability by 5%. Check if your team uses "
+                     "automated deployment tools (GitHub Actions, Jenkins, etc.)."
+            )
+
         # ── Failure Probability ──────────────────────────────────────────
         st.markdown("---")
         st.markdown("#### 🎯 Failure Probability Assessment")
@@ -1334,8 +1400,8 @@ with tab5:
                 servers           = result_fr["servers"],
                 migration_premium = mig_premium,
                 annual_saving     = annual_saving,
-                has_skilled_team  = False,
-                has_cicd          = False,
+                has_skilled_team  = has_skilled_team,
+                has_cicd          = has_cicd,
                 zombie_count      = zombie_count,
                 nlp_risk_score    = nlp_score,
             )
@@ -1490,7 +1556,7 @@ with tab5:
                 st.markdown(f"→ {rec}")
 
         # Save for report
-        st.session_state["report_ml"] = {
+        set_state("report_ml", {
             "friction_risk":       friction["risk_level"],
             "friction_narrative":  friction["narrative"],
             "warnings":            friction["warnings"],
@@ -1499,7 +1565,7 @@ with tab5:
             "failure_verdict":     failure["verdict"],
             "zombie_count":        zombie_count,
             "waste_pct":           (zombie_for_friction or {}).get("potential_savings_pct", 0),
-        }
+        })
     else:
         st.info("Complete Phase 1 (Tab 1) and run Cloud Analysis first to enable the AI System Auditor.")
 

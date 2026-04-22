@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+# Add project root to sys.path so all engine/ml/config imports resolve
+# when pytest is run from any working directory.
+pythonpath = ["."]
+testpaths  = ["tests"]
+
+# Show short tracebacks by default; use --tb=long for full detail
+addopts = "--tb=short -q"
