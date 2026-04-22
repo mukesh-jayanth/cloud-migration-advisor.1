@@ -278,7 +278,7 @@ st.markdown("""
     ☁️ Cloud Migration Decision Support System
   </h1>
   <p style="color:#94a3b8;margin:6px 0 0 0;font-size:.95rem;">
-    End-to-end infrastructure analysis · TCO modelling · Risk assessment · AI friction predictor
+    End-to-end infrastructure analysis · TCO modelling · Risk assessment · Friction predictor
   </p>
 </div>
 """, unsafe_allow_html=True)
@@ -608,7 +608,7 @@ with tab1:
                         "ram_util_pct": float(ram_util),
                     }]
                     st.caption(
-                        "AI scans a representative server record from your inputs. "
+                        "System scans a representative server record from your inputs. "
                         "Upload an Excel dataset for per-server-type analysis."
                     )
                 zombie_result = detect_zombie_servers(zombie_server_list)
@@ -888,7 +888,7 @@ with tab3:
             st.markdown("#### 📝 Describe Your Migration Concerns")
             st.caption(
                 "Type your biggest fears about this migration. "
-                "The AI will classify them into risk categories and adjust "
+                "The system will classify them into risk categories and adjust "
                 "your probability sliders automatically."
             )
             fear_text = st.text_area(
@@ -1309,16 +1309,15 @@ with tab4:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 5 — AI System Auditor (Friction & Failure Predictor)
+#  TAB 5 — System Auditor (Friction & Failure Predictor)
 # ══════════════════════════════════════════════════════════════════════════════
 with tab5:
 
-    st.markdown('<div class="section-header">🤖 AI System Auditor — Friction & Failure Predictor</div>',
+    st.markdown('<div class="section-header">🤖 System Auditor — Friction & Failure Predictor</div>',
                 unsafe_allow_html=True)
     st.markdown("""
     <div class="info-box">
-      The AI evaluates the <b>risk of your chosen strategy</b> — not what strategy to pick
-      (the Rule Engine already does that). It identifies <i>friction points</i>, <i>deadlocks</i>,
+      This phase evaluates the <b>risk of your chosen strategy</b> It identifies <i>friction points</i>, <i>deadlocks</i>,
       and estimates the <b>probability of project failure</b>, giving you an honest executive
       verdict before you commit.
     </div>
@@ -1393,7 +1392,7 @@ with tab5:
 
         annual_saving = onprem_fr - cloud_fr
 
-        with st.spinner("🤖 AI Auditor is running Friction & Failure analysis..."):
+        with st.spinner("🤖 Auditor is running Friction & Failure analysis..."):
             failure = calculate_failure_probability(
                 strategy          = strategy_fr,
                 budget_level      = budget_fr_sel,
@@ -1567,7 +1566,7 @@ with tab5:
             "waste_pct":           (zombie_for_friction or {}).get("potential_savings_pct", 0),
         })
     else:
-        st.info("Complete Phase 1 (Tab 1) and run Cloud Analysis first to enable the AI System Auditor.")
+        st.info("Complete Phase 1 (Tab 1) and run Cloud Analysis first to enable the System Auditor.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1608,7 +1607,7 @@ with tab6:
             ("💰 Phase 2 — Cost Analysis",         report_data["cloud"]),
             ("⚠️  Phase 3 — Risk Analysis",        report_data["risk"]),
             ("🧭 Phase 4 — Strategy + Economics",  report_data["strategy"]),
-            ("🤖 Phase 5 — AI System Audit",       report_data["ml"]),
+            ("🤖 Phase 5 — System Audit",       report_data["ml"]),
         ]
         for label, data in phase_checks:
             tick  = "✅" if data else "⬜"

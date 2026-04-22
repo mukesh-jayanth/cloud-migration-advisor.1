@@ -2,10 +2,19 @@ venv/
 __pycache__/
 *.pyc
 *.log
-logs/
+logs/*
+!logs/.gitkeep
 pytest_output.txt
+fresh_test_output.txt
 test_errors*.log
 .pytest_cache/
 *.pkl
 *.png
 !models/.gitkeep
+
+# Streamlit secrets (never commit)
+.streamlit/secrets.toml
+
+# Excel uploads (keep only the bundled sample)
+data/*.xlsx
+!data/sample_infrastructure.xlsx

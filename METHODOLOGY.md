@@ -24,20 +24,6 @@ A Black-Box model that outputs a prediction with 87% confidence but no explanati
 
 ---
 
-## Glass-Box vs. Black-Box: A Direct Comparison
-
-| Dimension | Black-Box ML (e.g., Decision Tree on Synthetic Data) | Glass-Box Rules (Our Approach) |
-|---|---|---|
-| **Accuracy** | High on training data, unknown on real data | Directly reflects domain expertise |
-| **Explainability** | Post-hoc XAI approximations (SHAP, LIME) | Every recommendation links to a specific rule |
-| **Trust** | Low — "The model said so" | High — "Your 3% CPU utilisation triggered this" |
-| **Auditability** | Requires ML expertise to audit weights | Any engineer can read and verify the logic |
-| **Data dependency** | Requires labelled training data (often synthetic) | Requires domain expert knowledge |
-| **Failure mode** | Silent, confident, wrong | Explicit, traceable, correctable |
-| **Regulatory** | Difficult to justify to auditors | Fully auditable rule chain |
-
----
-
 ## Our Architecture: The AI System Auditor
 
 Rather than training a model to predict *what strategy to use* (a question already answered by simple business rules), we focused the AI on what humans genuinely *cannot* compute manually at scale:

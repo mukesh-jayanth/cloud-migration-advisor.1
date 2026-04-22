@@ -1,55 +1,112 @@
-# Cloud Migration Decision Support System (CMDSS)
+# ☁️ Cloud Migration Decision Support System (CMDSS)
 
-Welcome to the **Cloud Migration Decision Support System**, an end-to-end infrastructure analysis, total cost of ownership (TCO) modeling, risk assessment, and AI strategy recommendation tool.
+Welcome to the Cloud Migration Decision Support System, an end-to-end infrastructure analysis, total cost of ownership (TCO) modeling, risk assessment, and Failure prediction tool.
 
-## 🌟 Overview
-The CMDSS is a **Glass-Box AI advisor** that evaluates on-premise infrastructure and generates traceable, explainable cloud migration recommendations. Every recommendation links back to a specific, auditable rule or risk factor — no Black-Box model outputs.
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/built%20with-Streamlit-ff4b4b.svg)](https://streamlit.io)
+[![Tests](https://img.shields.io/badge/tests-138%20passing-brightgreen.svg)](tests/)
 
-> **Methodology:** See [METHODOLOGY.md](METHODOLOGY.md) for a full explanation of why we chose an Interpretability-First design over a black-box ML model.
-
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
-Make sure you have Python 3.9+ installed. 
+Python 3.9 or higher.
 
-### Installation
-1. Clone the repository and navigate to the project root.
-2. Install the required dependencies using pip:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Run the Streamlit application:
-   ```bash
-   streamlit run app.py
-   ```
-
-### Quick UI Preview
-*The system features a polished, dark-mode Streamlit interface out of the box.*
-> *(Add screenshots here! e.g., `![Phase 1 UI](docs/screens/phase1.png)`)*
-
-## 🏗️ Application Architecture 
-
-The codebase is highly modular, with core logic decoupled from the UI:
-- **`app.py`**: The Streamlit user interface encompassing all 5 decision phases.
-- **`engines/`**:
-  - `cost_engine.py`: Computes CapEx/OpEx and models TCO with a configurable financial model.
-  - `cloud_cost_engine.py`: Prices instances across top providers (AWS, Azure, GCP), adjusting for pricing models (On-Demand, Reserved).
-  - `risk_engine.py` & `rule_engine.py`: Handle risk-adjustment for specific business scenarios.
-- **`ml/predict_strategy.py`**: The AI System Auditor — a Glass-Box Friction & Failure Predictor.
-- **`logger_config.py`**: Centralized audit logging. All engine decisions are logged to `logs/audit.log`.
-
-## 🧭 The 5 Phases (Tabs)
-
-1. **Phase 1 — Infrastructure & TCO**: Input current on-premise infrastructure via Excel upload, preset, or manual entry. Calculates multi-year TCO and rightsizes based on real resource utilization.
-2. **Phase 2 — Cost Analysis**: Compare right-sized on-prem vs Cloud costs. Recommends the best provider and visualizes the 5-year TCO trajectory under varying cost commitments.
-3. **Phase 3 — Risk Analysis**: Models the financial impact of migration risks (Downtime, Compliance, Skill Gaps) against theoretical cloud savings.
-4. **Phase 4 — Strategy & Rules**: Pure rule-based engine logic to propose Lift-and-Shift, Hybrid, or Cloud-Native solutions based on specific business conditions (like compliance level).
-5. **Phase 5 — System Auditor & Reports**: An AI predictor evaluates your chosen strategy and budget to identify friction points and calculate project failure probabilities. Includes an option in Tab 6 to export HTML and CSV reports.
-
-## 🐳 Docker Deployment
-To launch the app within a structured Docker environment:
+### Local Setup
 ```bash
-docker build -t cmdss-app .
-docker run -p 8501:8501 cmdss-app
+git clone https://github.com/<your-username>/cloud-migration-advisor.git
+cd cloud-migration-advisor
+pip install -r requirements.txt
+streamlit run app.py
 ```
-Access the application at `http://localhost:8501`.
+The app opens at **http://localhost:8501**.
+
+---
+
+## 🐳 Docker
+
+```bash
+docker build -t cmdss .
+docker run -p 8501:8501 cmdss
+```
+Access at **http://localhost:8501**.
+
+---
+
+> **A Glass-Box infrastructure advisor** — every recommendation is traceable to a specific rule, formula, or risk factor. No black-box outputs, no opaque ML predictions.
+
+---
+
+## 🌟 What It Does
+
+CMDSS evaluates your on-premise infrastructure and produces explainable, auditable cloud migration guidance across six sequential phases:
+
+| Phase | Tab | What you get |
+|-------|-----|-------------|
+| 1 | Infrastructure & TCO | On-prem CapEx/OpEx breakdown + Zombie server detection |
+| 2 | Cost Analysis | AWS / Azure / GCP annual cost comparison (right-sized) |
+| 3 | Risk Analysis | Financial impact model for downtime, compliance & skill-gap risks |
+| 4 | Strategy & Rules | Rule-based engine → Lift-and-Shift / Hybrid / Cloud-Native recommendation |
+| 5 | Friction & Failure Predictor | NLP concern classifier + failure probability estimator |
+| 6 | Export Report | Download full HTML or CSV report |
+
+---
+
+## 🏗️ Architecture
+
+```
+├── app.py                  # Streamlit UI — all 6 phases
+├── engines/
+│   ├── cost_engine.py      # On-prem CapEx / OpEx / TCO
+│   ├── cloud_cost_engine.py # AWS / Azure / GCP pricing + right-sizing
+│   ├── risk_engine.py      # Risk-adjusted TCO (downtime, compliance, skills)
+│   ├── rule_engine.py      # Rule-based strategy recommendation + DR tiers
+│   ├── decision_engine.py  # Financial comparison + ROI timeline + fragility
+│   └── instance_selector.py # Cloud instance matching
+├── ml/
+│   ├── zombie_detector.py  # Idle/over-provisioned server flagging
+│   ├── risk_nlp.py         # Keyword-based migration concern classifier
+│   └── predict_strategy.py # Failure probability estimator
+├── report_generator.py     # HTML + CSV export
+├── pipeline.py             # End-to-end batch pipeline (non-UI)
+├── config.yaml             # All financial assumptions (edit without touching code)
+├── data/
+│   ├── cloud_instances.csv           # Instance catalogue (AWS/Azure/GCP)
+│   └── sample_infrastructure.xlsx   # Ready-to-use upload template
+└── tests/
+    └── test_phase6.py      # 138 tests — all passing
+```
+
+---
+
+## 🧪 Running Tests
+
+```bash
+pytest tests/
+```
+
+Expected output: **138 passed** across Cost, Risk, Cloud Cost, Rule, Decision, Zombie, NLP, Integration, and Report Generator test classes.
+
+---
+
+## ⚙️ Configuration
+
+All financial assumptions live in **`config.yaml`** — no Python changes needed:
+
+```yaml
+cost_engine:
+  server_unit_cost: 5000        # $/server hardware CapEx
+  admin_salary: 80000           # $/year per IT admin
+  facilities_overhead_rate: 0.12 # 12% Legacy Tax (PUE, cooling, security)
+
+cloud_cost:
+  egress_and_iops_rate: 0.065   # 6.5% connectivity overhead
+  managed_services_premium: 0.20 # 20% managed-services layer
+```
+
+> All costs are internally denominated in **USD** and displayed in **₹ INR** (at ₹84/USD).
+
+---
+
+## 📖 Methodology
+
+See [METHODOLOGY.md](METHODOLOGY.md) for the full design rationale — why an interpretability-first, rule-based approach was chosen over a pure ML model.
